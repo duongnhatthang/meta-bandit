@@ -3,6 +3,8 @@ import copy
 from gym import spaces
 from gym import Env
 from itertools import combinations
+from collections import Counter
+import pandas as pd
 
 class NoStatBernoulli(Env):
     """
@@ -97,37 +99,67 @@ class MetaBernoulli(Bernoulli):
     """
         All task's optimal arms is in a sub-group
     """
-    def __init__(self, n_bandits, opt_size, n_tasks, n_experts):
+    def __init__(self, n_bandits, opt_size, n_tasks, n_experts, ds_name = None):
         assert n_experts > 0, f"n_experts ({n_experts}) must be larger than 0."
-        self.opt_indices = np.arange(n_bandits)
-        np.random.shuffle(self.opt_indices)
-        self.sub_opt_indices = self.opt_indices[opt_size:]
-        self.opt_indices = np.sort(self.opt_indices[:opt_size]) # The indices of the optimal sub-group
-        while True:
-            self.p_dist = np.zeros((n_tasks,n_bandits))
-            self.p_dist[:, self.opt_indices] = np.random.uniform(size=(n_tasks,opt_size))
-            opt_values = self.p_dist.max(axis=1)
-            
-            temp = np.random.uniform(high = opt_values, size=(n_bandits - opt_size, n_tasks))
-            self.p_dist[:, self.sub_opt_indices] = temp.T
-            if np.max(opt_values)>0:
-                break
         self.r_dist = np.full((n_tasks,n_bandits), 1)
         self.n_tasks = n_tasks
         self.n_bandits = n_bandits
         self.action_space = spaces.Discrete(self.n_bandits)
         self.observation_space = spaces.Discrete(2*n_bandits)
-        self.reset_task(0)
         self.n_experts = n_experts
+        self.opt_size = opt_size
+        
+        if ds_name is None: #Synthesize dataset
+            self.opt_indices = np.arange(n_bandits)
+            np.random.shuffle(self.opt_indices)
+            self.sub_opt_indices = self.opt_indices[opt_size:]
+            self.opt_indices = np.sort(self.opt_indices[:opt_size]) # The indices of the optimal sub-group
+            while True:
+                self.p_dist = np.zeros((n_tasks,n_bandits))
+                self.p_dist[:, self.opt_indices] = np.random.uniform(size=(n_tasks,opt_size))
+                opt_values = self.p_dist.max(axis=1)
 
+                temp = np.random.uniform(high = opt_values, size=(n_bandits - opt_size, n_tasks))
+                self.p_dist[:, self.sub_opt_indices] = temp.T
+                if np.max(opt_values)>0:
+                    break
+        elif ds_name == "LastFM":
+            self._load_lastfm()
+        else:
+            assert False, f"{ds_name} is not implemented."
+
+        self.reset_task(0)
         all_subgroups = np.array(list(combinations(np.arange(n_bandits),opt_size)))
         idxs = (all_subgroups == self.opt_indices).all(1)
         opt_idx = np.where(idxs)[0][0]
 
-        tmp = np.arange(all_subgroups.shape[0])
-        np.random.shuffle(tmp)
-        tmp = tmp[:n_experts]
+        tmp = np.random.choice(all_subgroups.shape[0], n_experts, replace=False)
         self.expert_subgroups = all_subgroups[tmp]
         if opt_idx not in tmp:
             i = np.random.randint(n_experts)
             self.expert_subgroups[i] = self.opt_indices
+            
+    def _load_lastfm(self):
+        artists_df = pd.read_csv('./raw_ds/hetrec2011-lastfm-2k/artists.dat',sep='\t')
+        user_artists_df = pd.read_csv('./raw_ds/hetrec2011-lastfm-2k/user_artists.dat',sep='\t')
+        
+        unique_userID = np.unique(user_artists_df['userID'].values)
+        unique_artistID = np.unique(artists_df['id'].values)
+        assert unique_artistID.shape[0] == self.n_bandits, f"unique_artistID ({unique_artistID}) is not equal the number of arm ({self.n_bandits})"
+        assert unique_userID.shape[0] == self.n_tasks, f"unique_userID ({unique_userID}) is not equal the number of task ({self.n_tasks})"
+        self.p_dist = np.zeros((unique_userID.shape[0], unique_artistID.shape[0]))
+        for _, row in user_artists_df.iterrows():
+            u_idx = np.where(unique_userID==row['userID'])[0][0]
+            a_idx = np.where(unique_artistID==row['artistID'])[0][0]
+            self.p_dist[u_idx, a_idx] = row['weight']
+        for i in range(self.p_dist.shape[0]):
+            self.p_dist[i] /= self.p_dist[i].sum()
+
+        c = Counter(np.argmax(self.p_dist, axis=1))
+
+        self.opt_indices = np.zeros((self.opt_size,)).astype(int)
+        for i,tmp in enumerate(c.most_common()):
+            if i == self.opt_size:
+                break
+            else:
+                self.opt_indices[i] = tmp[0]
