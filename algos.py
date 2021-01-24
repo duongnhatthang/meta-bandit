@@ -18,12 +18,11 @@ class AsympUCB:
         self.n_bandits = n_bandits
 
     def get_action(self,obs):
-        index = np.zeros((self.n_bandits,))
-        for i in range(self.n_bandits):
-            mu_i = obs[2*i]
-            T_i = max(obs[2*i+1], 1e-6)
-            log_f_t = np.log(1+T_i*np.log(T_i)**2)
-            index[i] = mu_i + np.sqrt(2*log_f_t/T_i)
+        mu = obs[::2]
+        T = obs[1::2]
+        T[T==0] = 1e-6
+        log_f_t = np.log(1+T*np.log(T)**2)
+        index = mu + np.sqrt(2*log_f_t/T)
         return np.argmax(index)
     
 class MOSS:
@@ -32,12 +31,11 @@ class MOSS:
         self.horizon = horizon
 
     def get_action(self,obs):
-        index = np.zeros((self.n_bandits,))
-        for i in range(self.n_bandits):
-            mu_i = obs[2*i]
-            T_i = max(obs[2*i+1], 1e-6)
-            log_plus = np.log(np.maximum(1,self.horizon/(self.n_bandits*T_i)))
-            index[i] = mu_i + np.sqrt(4*log_plus/T_i)
+        mu = obs[::2]
+        T = obs[1::2]
+        T[T==0] = 1e-6
+        log_plus = np.log(np.maximum(1,self.horizon/(self.n_bandits*T)))
+        index = mu + np.sqrt(4*log_plus/T)
         return np.argmax(index)
 
 class ExpertAsympUCB(AsympUCB):
@@ -50,15 +48,15 @@ class ExpertAsympUCB(AsympUCB):
         self.min_index = min_index
 
     def get_action(self,obs):
-        index = np.zeros((self.n_bandits,))
-        for i in range(self.n_bandits):
-            if i not in self.expert_subgroup:
-                index[i] = self.min_index
-                continue
-            mu_i = obs[2*i]
-            T_i = max(obs[2*i+1], 1e-6)
-            log_f_t = np.log(1+T_i*np.log(T_i)**2)
-            index[i] = mu_i + np.sqrt(2*log_f_t/T_i)
+        mu = obs[::2]
+        T = obs[1::2]
+        T[T==0] = 1e-6
+        log_f_t = np.log(1+T*np.log(T)**2)
+        index = mu + np.sqrt(2*log_f_t/T)
+        mask = np.ones((self.n_bandits,))
+        mask[self.expert_subgroup] = 0
+        mask = mask.astype(bool)
+        index[mask] = self.min_index
         return np.argmax(index)
 
 class ExpertMOSS(MOSS):
@@ -71,15 +69,15 @@ class ExpertMOSS(MOSS):
         self.min_index = min_index
 
     def get_action(self,obs):
-        index = np.zeros((self.n_bandits,))
-        for i in range(self.n_bandits):
-            if i not in self.expert_subgroup:
-                index[i] = self.min_index
-                continue
-            mu_i = obs[2*i]
-            T_i = max(obs[2*i+1], 1e-6)
-            log_plus = np.log(np.maximum(1,self.horizon/(self.n_bandits*T_i)))
-            index[i] = mu_i + np.sqrt(4*log_plus/T_i)
+        mu = obs[::2]
+        T = obs[1::2]
+        T[T==0] = 1e-6
+        log_plus = np.log(np.maximum(1,self.horizon/(self.n_bandits*T)))
+        index = mu + np.sqrt(4*log_plus/T)
+        mask = np.ones((self.n_bandits,))
+        mask[self.expert_subgroup] = 0
+        mask = mask.astype(bool)
+        index[mask] = self.min_index
         return np.argmax(index)
 
 class Exp3:
@@ -87,7 +85,7 @@ class Exp3:
         reward in range [0,1]
         learning_rate: a function conditioned on n_bandits, horizon and time 't'
     """
-    def __init__(self, n_bandits, horizon, learning_rate=None):
+    def __init__(self, n_bandits, horizon, learning_rate=None, is_reset=False, **kwargs):
         self.n_bandits = n_bandits
         self.horizon = horizon
         if learning_rate is None:
@@ -95,6 +93,9 @@ class Exp3:
         else:
             self.learning_rate = learning_rate
         self.reset()
+        self.is_reset = is_reset
+        if self.is_reset == False:
+            self.n_switches = kwargs['n_switches']
             
     def reset(self):
         self.tracking_stats = np.zeros((self.n_bandits,)) #S_t
@@ -103,8 +104,14 @@ class Exp3:
         return np.sqrt(2*np.log(n_bandits)/(n_bandits*horizon))
 
     def get_action(self, obs):
-        # Calculate directly sometime get numerical error
-        P_t = softmax(self.learning_rate(self.n_bandits, self.horizon, t=None)*self.tracking_stats)
+        if self.is_reset == True:
+            horizon = self.horizon
+        else:
+            horizon = self.horizon*(self.n_switches+1)
+        tmp = self.learning_rate(self.n_bandits, horizon, t=None)*self.tracking_stats
+        # Max softmax trick
+        tmp -= tmp.max()
+        P_t = softmax(tmp)
         if np.isnan(np.sum(P_t)):
             import pdb; pdb.set_trace()
         return np.random.choice(self.n_bandits, p=P_t)
@@ -179,8 +186,10 @@ class MetaAlg:
                 self.tracking_stats[i] = s_i/(count+1)
         
     def _select_subgroup(self):
-        #EWA algorithm
-        P_t = softmax(self.learning_rate(self.n_bandits, self.horizon, t=None)*self.tracking_stats)
+        #EWA algorithm, max softmax trick
+        tmp = self.learning_rate(self.n_bandits, self.horizon, t=None)*self.tracking_stats
+        tmp -= tmp.max()
+        P_t = softmax(tmp)
         self.cur_subgroup_index = np.random.choice(self.n_experts, p=P_t)
         cur_subgroup = self.expert_subgroups[self.cur_subgroup_index]
         if self.alg_name == 'ExpertAsympUCB':
