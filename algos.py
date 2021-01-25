@@ -132,7 +132,7 @@ class MetaAlg:
         
         expert_subgroups: indices recommended by the experts. shape = (# of expert, subgroup's size)
     """
-    def __init__(self, n_bandits, horizon, n_switches, n_unbiased_obs, alg_name, expert_subgroups, learning_rate=None, min_stats = -1000):
+    def __init__(self, n_bandits, horizon, n_switches, n_unbiased_obs, alg_name, expert_subgroups, learning_rate=None, min_stats = -1000, update_trick = False):
         self.n_bandits = n_bandits
         self.horizon = horizon
         self.n_unbiased_obs = n_unbiased_obs
@@ -149,6 +149,7 @@ class MetaAlg:
         self.reset()
         self.min_stats = min_stats #must be smaller than min reward, for init tracking stats
         self.n_switches = n_switches
+        self.update_trick = update_trick
 
     def reset(self):
         self.collect_data_counter = 0
@@ -213,13 +214,16 @@ class MetaAlg:
             if self.tracking_stats is None: #Init tracking_stats if needed
                 self._update_tracking_stats(obs)
                 self._select_subgroup()
-            else:
+            elif self.update_trick == False:
                 selected_experts = np.arange(self.n_experts)
                 selected_experts = np.delete(selected_experts, self.cur_subgroup_index)
                 self._update_tracking_stats(obs, selected_experts=selected_experts)
         return self.cur_alg.get_action(obs)
     
     def eps_end_update(self, obs): #update the tracking_stats after each rolls-out
-        self._update_tracking_stats(obs, selected_experts=np.array([self.cur_subgroup_index]))
+        if self.update_trick == False:
+            self._update_tracking_stats(obs, selected_experts=np.array([self.cur_subgroup_index]))
+        else:
+            self._update_tracking_stats(obs)
         self.tracking_stats_counter += 1
         self.reset()
