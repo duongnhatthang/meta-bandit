@@ -132,7 +132,7 @@ class MetaAlg:
         
         expert_subgroups: indices recommended by the experts. shape = (# of expert, subgroup's size)
     """
-    def __init__(self, n_bandits, horizon, n_switches, n_unbiased_obs, alg_name, expert_subgroups, learning_rate=None, min_stats = -1000, update_trick = False):
+    def __init__(self, n_bandits, horizon, n_switches, n_unbiased_obs, alg_name, expert_subgroups, learning_rate=None, update_trick = False):
         self.n_bandits = n_bandits
         self.horizon = horizon
         self.n_unbiased_obs = n_unbiased_obs
@@ -143,13 +143,12 @@ class MetaAlg:
             self.learning_rate = self._default_learning_rate
         else:
             self.learning_rate = learning_rate
-        self.tracking_stats = None #\hat{g}_n
-        self.tracking_stats_counter = 0 # number of episodes till now
+        self.tracking_stats = np.zeros((self.n_experts,)) #\hat{g}_n
         self.collect_data_actions = np.repeat(np.arange(self.n_bandits),n_unbiased_obs)
         self.reset()
-        self.min_stats = min_stats #must be smaller than min reward, for init tracking stats
         self.n_switches = n_switches
         self.update_trick = update_trick
+#         self.prev_choice = -1
 
     def reset(self):
         self.collect_data_counter = 0
@@ -166,25 +165,12 @@ class MetaAlg:
         if selected_experts is None:
             selected_experts=np.arange(self.n_experts)
         # Update tracking stats with \hat{r}_n
-        r_n = np.zeros((self.n_bandits,)) # mean reward vector
-        for i in range(self.n_bandits):
-            r_n[i] = obs[2*i]
-
-        init_flag = False
-        if self.tracking_stats is None:
-            init_flag = True
-            self.tracking_stats = np.zeros((self.n_experts,))
-            self.tracking_stats_counter = 0
-        count = self.tracking_stats_counter
+        r_n = obs[::2] # mean reward vector
         expert_list = np.intersect1d(selected_experts, np.arange(self.n_experts))
         for i in expert_list:
             subgroup_indices = self.expert_subgroups[i]
             g_ni = np.max(r_n[subgroup_indices])
-            if init_flag == True:
-                self.tracking_stats[i] = g_ni
-            else:
-                s_i = self.tracking_stats[i]*count + g_ni
-                self.tracking_stats[i] = s_i/(count+1)
+            self.tracking_stats[i] += g_ni
         
     def _select_subgroup(self):
         #EWA algorithm, max softmax trick
@@ -192,6 +178,11 @@ class MetaAlg:
         tmp -= tmp.max()
         P_t = softmax(tmp)
         self.cur_subgroup_index = np.random.choice(self.n_experts, p=P_t)
+#         if self.cur_subgroup_index != self.prev_choice:
+#             print(self.tracking_stats)
+#             self.prev_choice = self.cur_subgroup_index
+
+#         self.cur_subgroup_index = P_t.argmax()
         cur_subgroup = self.expert_subgroups[self.cur_subgroup_index]
         if self.alg_name == 'ExpertAsympUCB':
             self.cur_alg = ExpertAsympUCB(self.n_bandits, cur_subgroup)
@@ -202,7 +193,7 @@ class MetaAlg:
     
     
     def get_action(self, obs): #get action for each rolls-out step
-        if self.collect_data_counter == 0 and self.tracking_stats is not None: #Select subgroup
+        if self.collect_data_counter == 0 and (self.tracking_stats == np.zeros((self.n_experts,))).all() == False: #Select subgroup
             self._select_subgroup()
 
         if self.collect_data_counter < self.n_bandits*self.n_unbiased_obs: #data collecting phase
@@ -210,8 +201,8 @@ class MetaAlg:
             return self.collect_data_actions[self.collect_data_counter-1]
         
         if self.collect_data_counter == self.n_bandits*self.n_unbiased_obs: #Update non-selected subgroups
-            self.collect_data_counter += 1
-            if self.tracking_stats is None: #Init tracking_stats if needed
+            self.collect_data_counter += 1 #Only be here once per switch
+            if (self.tracking_stats == np.zeros((self.n_experts,))).all(): #Init tracking_stats if needed
                 self._update_tracking_stats(obs)
                 self._select_subgroup()
             elif self.update_trick == False:
@@ -225,5 +216,4 @@ class MetaAlg:
             self._update_tracking_stats(obs, selected_experts=np.array([self.cur_subgroup_index]))
         else:
             self._update_tracking_stats(obs)
-        self.tracking_stats_counter += 1
         self.reset()

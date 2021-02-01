@@ -126,6 +126,7 @@ class MetaBernoulli(Bernoulli):
                     break
         elif ds_name == "LastFM":
             self.count_threshold = kwargs['count_threshold'] #Threshold of n_bandits for this dataset
+            self.lastFM_clean_mode = kwargs['lastFM_clean_mode']
             self._load_lastfm()
         else:
             assert False, f"{ds_name} is not implemented."
@@ -148,35 +149,77 @@ class MetaBernoulli(Bernoulli):
             if any((self.expert_subgroups[:]==self.opt_indices).all(1)) == False:
                 i = np.random.randint(n_experts)
                 self.expert_subgroups[i] = self.opt_indices
+        print(f'Optimal expert index = {np.where((self.expert_subgroups[:]==self.opt_indices).all(1))[0][0]}')
+#         import pdb; pdb.set_trace()
             
     def _load_lastfm(self):
         artists_df = pd.read_csv('./raw_ds/hetrec2011-lastfm-2k/artists.dat',sep='\t')
         user_artists_df = pd.read_csv('./raw_ds/hetrec2011-lastfm-2k/user_artists.dat',sep='\t')
         
-        unique_userID = np.unique(user_artists_df['userID'].values)
-        unique_artistID = np.unique(artists_df['id'].values)
+        self.unique_userID = np.unique(user_artists_df['userID'].values)
+        self.unique_artistID = np.unique(artists_df['id'].values)
 #         assert unique_artistID.shape[0] == self.n_bandits, f"unique_artistID ({unique_artistID}) is not equal the number of arm ({self.n_bandits})"
-        assert unique_userID.shape[0] == self.n_tasks, f"unique_userID ({unique_userID}) is not equal the number of task ({self.n_tasks})"
-        temp_p_dist = np.zeros((unique_userID.shape[0], unique_artistID.shape[0]))
+#         unique_userID.shape[0] == self.n_tasks, f"unique_userID ({unique_userID}) is not equal the number of task ({self.n_tasks})"
+        temp_p_dist = np.zeros((self.unique_userID.shape[0], self.unique_artistID.shape[0]))
         for _, row in user_artists_df.iterrows():
-            u_idx = np.where(unique_userID==row['userID'])[0][0]
-            a_idx = np.where(unique_artistID==row['artistID'])[0][0]
+            u_idx = np.where(self.unique_userID==row['userID'])[0][0]
+            a_idx = np.where(self.unique_artistID==row['artistID'])[0][0]
             temp_p_dist[u_idx, a_idx] = row['weight']
         for i in range(temp_p_dist.shape[0]):
-            temp_p_dist[i] /= temp_p_dist[i].sum()
+            temp_p_dist[i] /= temp_p_dist[i].max()
+        while True:
+            if self.lastFM_clean_mode == 'clean': # clean the dataset to satisfy meta-assumption
+                self._lastFM_clean(temp_p_dist, meta_assumption=True, randSub=False)
+            elif self.lastFM_clean_mode == 'topK':
+                self._lastFM_clean(temp_p_dist, meta_assumption=False, randSub=False)
+            elif self.lastFM_clean_mode == 'randSub':
+                self._lastFM_clean(temp_p_dist, meta_assumption=False, randSub=True)
+            else:
+                assert False, f'self.lastFM_clean_mode = {self.lastFM_clean_mode} is not implemented.'
+            if self.p_dist.shape[0] >= self.n_tasks: # Make p_dist.shape[0] same size as n_tasks
+                self.p_dist = self.p_dist[:self.n_tasks]
+                break
+        assert self.p_dist.shape[0] == self.n_tasks, f"self.p_dist.shape[0] ({self.p_dist.shape[0]}) is not equal the number of task ({self.n_tasks})"
 
+    def _select_topK_and_remove_zeros(self, temp_p_dist, randSub):
         c = Counter(np.argmax(temp_p_dist, axis=1))
-#         self.opt_indices = np.zeros((self.opt_size,)).astype(int)
         artist_indices = []
         for i,tmp in enumerate(c.most_common()):
             artistID, count = tmp
-#             if i < self.opt_size:
-#                 self.opt_indices[i] = artistID
             if count < self.count_threshold:
                 assert i>=self.opt_size, f"The count_threshold or opt_size is too large: Only {i} (< opt_size: {self.opt_size}) artists that are most favorited by more than {self.count_threshold}/{len(unique_userID)} people."
                 break
-            artist_indices.append(artistID)
-        print(f"Keeping only {len(artist_indices)}/{len(unique_artistID)} artists that are most favorited by more than {self.count_threshold}/{len(unique_userID)} people.")
+            if i<self.opt_size or randSub == False:
+                artist_indices.append(artistID)
+            else:
+                available_choices = np.setdiff1d(np.arange(temp_p_dist.shape[1]),artist_indices)
+                artist_indices.append(np.random.choice(available_choices))
+        print(f"Keeping only {len(artist_indices)}/{len(self.unique_artistID)} artists that are most favorited by more than {self.count_threshold}/{len(self.unique_userID)} people.")
         assert len(artist_indices) == self.n_bandits, f"The number of artist satisfy the most favorited threshold ({len(artist_indices)}) is not equal the number of arm ({self.n_bandits})"
         self.p_dist = temp_p_dist[:,artist_indices] #Sorted by columns, from most popular to least
-        self.opt_indices = np.arange(self.opt_size)
+        print(f'There are {len(self.p_dist[(self.p_dist!=0).any(1)])} users that interested in at least 1/{self.n_bandits} artists.')
+
+        #TODO: Remove zeros vector user
+        self.p_dist = self.p_dist[(self.p_dist!=0).any(1)]
+
+    def _lastFM_clean(self, temp_p_dist, meta_assumption, randSub):
+        self._select_topK_and_remove_zeros(temp_p_dist, randSub)
+        # After removed some arms, the order of most favorited artist changed
+        argmax_p_dist = np.argmax(self.p_dist, axis=1)
+        filter_indices = [] # Keeping only users that favor the self.opt_indices artists
+        c_new = Counter(argmax_p_dist)
+        self.opt_indices = np.zeros((self.opt_size,))
+        for i,tmp in enumerate(c_new.most_common()):
+            idx, count = tmp
+            if i>= self.opt_size:
+                break
+            self.opt_indices[i] = idx
+            filter_indices += np.where(argmax_p_dist==idx)[0].tolist()
+        self.opt_indices.sort()
+        print(f'There are {len(filter_indices)} users that their favorite artist is in a subgroup of size {self.opt_size}.')
+
+        # Keeping only users that favor the self.opt_indices artists
+        if meta_assumption == True:
+            np.random.shuffle(filter_indices)
+            self.p_dist = self.p_dist[filter_indices]
+
