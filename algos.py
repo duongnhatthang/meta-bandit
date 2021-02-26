@@ -120,7 +120,7 @@ class Exp3:
         P_t = softmax(self.learning_rate(self.n_bandits, self.horizon, t=None)*self.tracking_stats)
         self.tracking_stats += 1
         self.tracking_stats[action] -= (1-reward)/P_t[action]
-    
+
 class MetaAlg:
     """
         Proposal: "tracking" the best subgroup (store in tracking_stats).
@@ -217,3 +217,101 @@ class MetaAlg:
         else:
             self._update_tracking_stats(obs)
         self.reset()
+
+class PhaseElim:
+    def __init__(self, n_bandits, horizon, C=1, min_index = -1000):
+        self.n_bandits = n_bandits
+        self.horizon = horizon
+        self.C = C
+        self.reset()
+        self.min_index = min_index
+    
+    def reset(self):
+        self.ml_counter = -1
+        self.cur_l = 1 #phase counter
+        self.A_l = np.arange(self.n_bandits)
+        self.cur_mu = np.zeros((self.n_bandits,)) # Tracking mu in one phase
+        self.cur_phase_actions = np.repeat(self.A_l,self._get_ml()) #get 'ml' observations from each arm in the self.A_l
+
+    def _get_ml(self):
+        return round(self.C*2**(2*self.cur_l)*np.log(max(np.exp(1),self.n_bandits*self.horizon*2**(-2*self.cur_l))))
+    
+    def _eliminate(self):
+        if self.A_l.shape[0]==1:
+            return
+        max_mu = np.max(self.cur_mu)
+        eliminate_arm_index = np.where(self.cur_mu + 2**(-self.cur_l) < max_mu)[0]
+        self.A_l = np.setdiff1d(self.A_l,eliminate_arm_index) # yields the elements in `self.A_l` that are NOT in `eliminate_arm_index`
+        self.cur_mu = np.zeros((self.n_bandits,))
+        self.cur_mu[eliminate_arm_index] = self.min_index
+
+    def get_action(self,obs):
+        if self.ml_counter == self._get_ml()*self.A_l.shape[0]-1:
+            # Reset statistics when starting a new phase
+            self.ml_counter = -1
+            self.cur_l += 1
+            self._eliminate()
+            self.cur_phase_actions = np.repeat(self.A_l,self._get_ml())
+        self.ml_counter += 1
+        return self.cur_phase_actions[self.ml_counter]
+
+    def update(self, action, reward):
+        self.cur_mu[action] += reward/self._get_ml()
+        
+class MetaPE:
+    def __init__(self, n_bandits, horizon, n_switches, expert_subgroups, C=1, min_index = -1000):
+        self.C = C
+        self.min_index = min_index
+        self.n_bandits = n_bandits
+        self.horizon = horizon
+        self.expert_subgroups = expert_subgroups
+        self.n_experts = self.expert_subgroups.shape[0]
+        self.n_switches = n_switches
+        self.PE_algo = PhaseElim(n_bandits, horizon, C, min_index)
+        self.reset()
+        self.MOSS_algo = ExpertMOSS(self.n_bandits, self.horizon, self.predicted_opt_arms, self.min_index)
+        self.subgroup_size = expert_subgroups[0].shape[0]
+        self.C1 = np.sqrt(horizon*self.subgroup_size)
+        self.C2 = np.sqrt(horizon*n_bandits)
+        self.C3 = horizon
+        self._set_is_explore()
+
+    def reset(self):
+        self.PE_algo.reset()
+        self.predicted_opt_arms = []
+        self.cur_switch = 0
+
+    def _get_exploration_prob(self):
+        if self.n_switches+1 == self.cur_switch:
+            return 1
+        return np.sqrt((self.C3 - self.C1)/((self.C2 - self.C1)*2*(self.n_switches+1-self.cur_switch-1)))
+    
+    def _set_is_explore(self):
+        p = self._get_exploration_prob()
+        p = min(p,1) # TODO: prob bug here
+        if np.isnan(p):
+            import pdb; pdb.set_trace()
+        self.is_explore = bool(np.random.choice(2,p=[1-p,p]))
+
+    def get_action(self, obs): #get action for each rolls-out step
+        if self.is_explore == True and len(self.predicted_opt_arms)<self.subgroup_size:
+            return self.PE_algo.get_action(obs)
+        else:
+            return self.MOSS_algo.get_action(obs)
+    
+    def eps_end_update(self, obs): #update the tracking_stats after each rolls-out
+        if self.is_explore == True and len(self.predicted_opt_arms)<self.subgroup_size:
+            arms_found = self.PE_algo.A_l
+            if arms_found.shape[0]==1:
+                if arms_found[0] not in self.predicted_opt_arms:
+                    self.predicted_opt_arms.append(arms_found[0])
+                self.MOSS_algo = ExpertMOSS(self.n_bandits, self.horizon, self.predicted_opt_arms, self.min_index)
+            else:
+                assert False, f"{arms_found.shape[0]} arms left after elimination: {self.PE_algo.cur_mu}."
+        self.PE_algo.reset()
+        self.cur_switch += 1
+        self._set_is_explore()
+
+    def update(self, action, reward):
+        if self.is_explore == True and len(self.predicted_opt_arms)<self.subgroup_size:
+            self.PE_algo.update(action, reward)
