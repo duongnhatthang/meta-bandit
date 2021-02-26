@@ -66,7 +66,7 @@ class Bernoulli(NoStatBernoulli):
     Observation: return statistic (avg_0, #_chosen_0, avg_1, ...)
     """
     def __init__(self, n_bandits, n_tasks):
-        super().__init__(self, n_bandits, n_tasks)
+        super().__init__(n_bandits, n_tasks)
         self.observation_space = spaces.Discrete(2*n_bandits)
 
     def _get_obs(self):
@@ -109,22 +109,36 @@ class MetaBernoulli(Bernoulli):
         self.observation_space = spaces.Discrete(2*n_bandits)
         self.n_experts = n_experts
         self.opt_size = opt_size
+        self.gap_constrain = kwargs['gap_constrain']
         
         if ds_name is None: #Synthesize dataset
             self.opt_indices = np.arange(n_bandits)
             np.random.shuffle(self.opt_indices)
             self.sub_opt_indices = self.opt_indices[opt_size:]
             self.opt_indices = np.sort(self.opt_indices[:opt_size]) # The indices of the optimal sub-group
+            low = 1e-6
+            if self.gap_constrain is not None:
+                low = self.gap_constrain
             while True:
                 self.p_dist = np.zeros((n_tasks,n_bandits))
-                self.p_dist[:, self.opt_indices] = np.random.uniform(size=(n_tasks,opt_size))
-                opt_values = self.p_dist.max(axis=1)
+#                 self.p_dist[:, self.opt_indices] = np.random.uniform(low = low, size=(n_tasks,opt_size))
+#                 opt_values = self.p_dist.max(axis=1)
 
-                temp = np.random.uniform(high = opt_values, size=(n_bandits - opt_size, n_tasks))
-                self.p_dist[:, self.sub_opt_indices] = temp.T
+#                 temp = np.random.uniform(high = opt_values-low, size=(n_bandits - opt_size, n_tasks))
+#                 self.p_dist[:, self.sub_opt_indices] = temp.T
+
+                opt_values = np.random.uniform(low = low, size = (n_tasks,))
+                while True:
+                    opt_indices = np.random.choice(self.opt_indices, size = (n_tasks,))
+                    if len(list(set(opt_indices.tolist()))) == opt_size:
+                        break
+                temp = np.random.uniform(high = opt_values-low, size=(n_bandits, n_tasks))
+                self.p_dist = temp.T
+                self.p_dist[np.arange(n_tasks), opt_indices] = opt_values
                 if np.max(opt_values)>0:
                     break
         elif ds_name == "LastFM":
+            assert self.gap_constrain is None, "gap_constrain for LastFM is NOT implemented yet."
             self.count_threshold = kwargs['count_threshold'] #Threshold of n_bandits for this dataset
             self.lastFM_clean_mode = kwargs['lastFM_clean_mode']
             self._load_lastfm()
