@@ -330,7 +330,7 @@ class MetaPM: # PE + Partial Monitoring
         assert self.delta_n <= 1 and self.delta_n >= 0, f" self.delta_n ({self.delta_n}) is not in the range [0,1]. Reduce N_EXPERT, HORIZON or increase N_SWITCHES."
         self.is_small_C1 = is_small_C1
         self._select_expert()
-#         print(f'MetaPM: self.delta_n = {self.delta_n}, self.learning_rate={self.learning_rate}')
+        print(f'MetaPM: self.delta_n = {self.delta_n}, self.learning_rate={self.learning_rate}')
         assert self.C1 <= self.C2 and self.C2 <= self.C3, f"C1 ({self.C1}) < C2 ({self.C2}) < C3 ({self.C3}) not satisfied."
 
     def reset(self):
@@ -340,8 +340,8 @@ class MetaPM: # PE + Partial Monitoring
         return 1
 
     def _get_delta_n(self):
-        return ((np.log(self.n_experts)*self.C3**2)/(self.n_round*self.C2**2))**(1/3)
-#         return (self.C3*np.log(self.n_experts)/(self.C2*self.n_round))**(1/2)
+#         return ((np.log(self.n_experts)*self.C3**2)/(self.n_round*self.C2**2))**(1/3)
+        return (self.C3*np.log(self.n_experts)/(self.C2*self.n_round))**(1/2)
 
     def _select_expert(self):
         #EWA algorithm, max softmax trick
