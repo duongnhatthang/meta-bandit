@@ -10,6 +10,9 @@ ARM_EXP = 2
 SUBSET_EXP = 3
 
 def rolls_out(agent, env, horizon, quiet):
+    """
+        Rolls-out 1 task
+    """
     rewards = []
     obs = env.reset()        
     if quiet == False:
@@ -36,6 +39,9 @@ def rolls_out(agent, env, horizon, quiet):
     return regret
 
 def meta_rolls_out(n_tasks, agent, env, horizon, quiet):
+    """
+        Rolls-out n_tasks
+    """
     regrets = []
     tmp_regrets = []
     for idx in range(n_tasks):
