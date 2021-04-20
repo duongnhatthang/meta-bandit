@@ -2,28 +2,6 @@ import numpy as np
 import random
 import copy
 from scipy.special import softmax
-
-class Random:
-    def __init__(self, n_bandits):
-        self.n_bandits = n_bandits
-        
-    def get_action(self,obs):
-        """
-            Observation: return statistic (avg_0, #_chosen_0, avg_1, ...)
-        """
-        return np.random.randint(self.n_bandits)
-
-class AsympUCB:
-    def __init__(self, n_bandits):
-        self.n_bandits = n_bandits
-
-    def get_action(self,obs):
-        mu = obs[::2]
-        T = obs[1::2]
-        T[T==0] = 1e-6
-        log_f_t = np.log(1+T*np.log(T)**2)
-        index = mu + np.sqrt(2*log_f_t/T)
-        return np.argmax(index)
     
 class MOSS:
     def __init__(self, n_bandits, horizon):
@@ -36,27 +14,6 @@ class MOSS:
         T[T==0] = 1e-6
         log_plus = np.log(np.maximum(1,self.horizon/(self.n_bandits*T)))
         index = mu + np.sqrt(4*log_plus/T)
-        return np.argmax(index)
-
-class ExpertAsympUCB(AsympUCB):
-    """
-        Assign the index of all arms outside of expert_subset as min_index
-    """
-    def __init__(self, n_bandits, expert_subset, min_index = -1000):
-        super().__init__(n_bandits)
-        self.expert_subset = expert_subset
-        self.min_index = min_index
-
-    def get_action(self,obs):
-        mu = obs[::2]
-        T = obs[1::2]
-        T[T==0] = 1e-6
-        log_f_t = np.log(1+T*np.log(T)**2)
-        index = mu + np.sqrt(2*log_f_t/T)
-        mask = np.ones((self.n_bandits,))
-        mask[self.expert_subset] = 0
-        mask = mask.astype(bool)
-        index[mask] = self.min_index
         return np.argmax(index)
 
 class ExpertMOSS(MOSS):
@@ -81,10 +38,6 @@ class ExpertMOSS(MOSS):
         return np.argmax(index)
 
 class Exp3:
-    """
-        reward in range [0,1]
-        learning_rate: a function conditioned on n_bandits, horizon and time 't'
-    """
     def __init__(self, n_bandits, horizon, is_reset=False, **kwargs):
         self.n_bandits = n_bandits
         self.horizon = horizon
@@ -121,12 +74,12 @@ class Exp3:
 
 class EWAmaxStats:
     """
-        Proposal: "tracking" the best subset (store in tracking_stats).
-        In each stochastic rolls-out, queries n_unbiased_obs samples from each arm.
-        Then, uses the tracked statistic to select a subset.
-        Next, runs the expert_alg (e.g: ExpertMOSS) on that subset.
-        Finally, updates the tracking statistic with the value of max arm of each subset
-        Repeat for all round
+        EWA algorithm: tracking the best subset (store in tracking_stats).
+        - In each rolls-out, queries n_unbiased_obs samples from each arm.
+        - Then, uses the tracked statistic to select a subset.
+        - Next, runs the expert_alg (e.g: ExpertMOSS) on that subset.
+        - Finally, updates the tracking statistic with the value of max arm of each subset
+        - Repeat for all round
         
         expert_subsets: indices recommended by the experts. shape = (# of expert, subset's size)
     """
@@ -240,7 +193,13 @@ class PhaseElim:
     def update(self, action, reward):
         self.cur_mu[action] += reward/self._get_ml()
         
-class EE: #Phase Elimination with big Gap (always only return 1 arm after PE in each round)
+class EE:
+    """
+        Exploration-Exploitation algorithm:
+        - Run EXR with probability delta_n
+        - Aggregate surviving arms until it contains |S| arms (size of optimal subset)
+        - => Then only run EXT
+    """
     def __init__(self, n_bandits, horizon, n_tasks, expert_subsets, C=1, min_index = -1000):
         self.min_index = min_index
         self.n_bandits = n_bandits
@@ -275,21 +234,18 @@ class EE: #Phase Elimination with big Gap (always only return 1 arm after PE in 
         self.is_explore = bool(np.random.choice(2,p=[1-p,p]))
 
     def get_action(self, obs): #get action for each rolls-out step
-        # The 2nd condition to make sure it still run with small Gap (PE return multiple arms)
         if self.is_explore == True and len(self.predicted_opt_arms)<self.subset_size:
             return self.PE_algo.get_action(obs)
         else:
             return self.MOSS_algo.get_action(obs)
     
     def eps_end_update(self, obs): #update the tracking_stats after each rolls-out
-        # The 2nd condition to make sure it still run with small Gap (PE return multiple arms)
         if self.is_explore == True and len(self.predicted_opt_arms)<self.subset_size:
             arms_found = self.PE_algo.A_l
             if arms_found.shape[0]==1:
                 if arms_found[0] not in self.predicted_opt_arms:
                     self.predicted_opt_arms.append(arms_found[0])
             else:
-#                 print(f"{arms_found.shape[0]} arms left after elimination: {self.PE_algo.cur_mu}.")
                 self.predicted_opt_arms += arms_found.tolist()
                 self.predicted_opt_arms = list(set(self.predicted_opt_arms))
             self.MOSS_algo = ExpertMOSS(self.n_bandits, self.horizon, self.predicted_opt_arms, self.min_index)
@@ -298,15 +254,14 @@ class EE: #Phase Elimination with big Gap (always only return 1 arm after PE in 
         self._set_is_explore()
 
     def update(self, action, reward):
-        # The 2nd condition to make sure it still run with small Gap (PE return multiple arms)
         if self.is_explore == True and len(self.predicted_opt_arms)<self.subset_size:
             self.PE_algo.update(action, reward)
 
-class PMML_EWA: # PE + Partial Monitoring
+class PMML_EWA:
     """
         Tracking the statistic of each EXT experts and 1 EXR expert => EWA.
-         - If EXT expert contain PE survival arms => f(C1) cost, else => f(C3) cost
-         - EXR expert => f(C2) cost
+         - If EXT expert contain PE survival arms => 0 cost, else => (C3-C1)/P_{EXR} cost
+         - EXR expert => (C2-C1)/P_{EXR}
          - Only update statistic at EXR round
     """
     def __init__(self, n_bandits, horizon, n_tasks, expert_subsets, C=1, min_index = -1000):
@@ -322,13 +277,12 @@ class PMML_EWA: # PE + Partial Monitoring
         self.C3 = horizon
         self.learning_rate = self._default_learning_rate()
         self.tracking_stats = np.zeros((self.n_experts+1,)) # Last expert is EXR
-        self.tracking_stats[-1] = 1 #TODO: test prior forcing exploration
+        self.tracking_stats[-1] = 1
         self.PE_algo = PhaseElim(n_bandits, horizon, C, min_index)
         self.reset()
         self.delta_n = self._get_delta_n()
         assert self.delta_n <= 1 and self.delta_n >= 0, f" self.delta_n ({self.delta_n}) is not in the range [0,1]. Reduce N_EXPERT, HORIZON or increase n_tasks."
         self._select_expert()
-        print(f'PMML_EWA: self.delta_n = {self.delta_n}, self.learning_rate={self.learning_rate}')
         assert self.C1 <= self.C2 and self.C2 <= self.C3, f"C1 ({self.C1}) < C2 ({self.C2}) < C3 ({self.C3}) not satisfied."
 
     def reset(self):
@@ -338,7 +292,6 @@ class PMML_EWA: # PE + Partial Monitoring
         return 1
 
     def _get_delta_n(self):
-#         return ((np.log(self.n_experts)*self.C3**2)/(self.n_tasks*self.C2**2))**(1/3)
         return (self.C3*np.log(self.n_experts)/(self.C2*self.n_tasks))**(1/2)
 
     def _select_expert(self):
@@ -398,7 +351,7 @@ class PMML_EWA: # PE + Partial Monitoring
 
 class PMML(PMML_EWA):
     """
-    Trick:  - Remove (stop tracking) all experts not contain the surviving arms returned by Phase Elimination
+        Remove all experts not contain the surviving arms returned by Phase Elimination
     """
     def __init__(self, n_bandits, horizon, n_tasks, expert_subsets, C=1, min_index = -1000):
         super().__init__(n_bandits, horizon, n_tasks, expert_subsets, C, min_index)
@@ -417,7 +370,6 @@ class PMML(PMML_EWA):
             temp[-1] = self.tracking_stats[-1] #EXR expert statistic
             self.tracking_stats = temp
             self.tracking_stats += 1-l_n
-#         print(f'PMML: self.surviving_experts = {self.surviving_experts}')
         
     def eps_end_update(self, obs): #update the tracking_stats after each rolls-out
         self._update_tracking_stats(obs)

@@ -8,12 +8,10 @@ import pandas as pd
 
 class NoStatBernoulli(Env):
     """
-    control agent to choose an arm
-    tasks (aka goals) maximize cumulative reward for different bandit setting
-    Basic bandit setting, independent reward between arms
-    Observation: None
-    Action: 0-n (n is # of arms)
-    Reward: {0,1} bernoulli distribution of chosen arm
+        Basic bandit setting, independent reward between arms
+        Observation: None
+        Action: [0,n) (n is # of arms)
+        Reward: {0,1} bernoulli distribution of chosen arm
     """
 
     def __init__(self, n_bandits, n_tasks):
@@ -29,9 +27,6 @@ class NoStatBernoulli(Env):
         self.reset_task(0)
 
     def step(self, action):
-        """
-        Deterministic. When it's stochastic, used self._reward_func and self._trans_prob_func
-        """
         action = int(np.rint(action))
         reward = np.random.choice(2,p=[1-self._p[action],self._p[action]])*self._r[action]
         done = False
@@ -63,7 +58,7 @@ class NoStatBernoulli(Env):
         
 class Bernoulli(NoStatBernoulli):    
     """
-    Observation: return statistic (avg_0, #_chosen_0, avg_1, ...)
+        Observation: return statistic (avg_0, #_chosen_0, avg_1, ...)
     """
     def __init__(self, n_bandits, n_tasks):
         super().__init__(n_bandits, n_tasks)
@@ -80,9 +75,6 @@ class Bernoulli(NoStatBernoulli):
         return self._get_obs()
 
     def step(self, action):
-        """
-        Deterministic gridworld. When it's stochastic, used self._reward_func and self._trans_prob_func
-        """
         action = int(np.rint(action))
         reward = np.random.choice(2,p=[1-self._p[action],self._p[action]])*self._r[action]
         self.total_reward+=reward

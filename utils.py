@@ -10,6 +10,9 @@ ARM_EXP = 2
 SUBSET_EXP = 3
 
 def rolls_out(agent, env, horizon, quiet):
+    """
+        Rolls-out 1 task
+    """
     rewards = []
     obs = env.reset()        
     if quiet == False:
@@ -36,6 +39,9 @@ def rolls_out(agent, env, horizon, quiet):
     return regret
 
 def meta_rolls_out(n_tasks, agent, env, horizon, quiet):
+    """
+        Rolls-out n_tasks
+    """
     regrets = []
     tmp_regrets = []
     for idx in range(n_tasks):
@@ -96,7 +102,7 @@ def plot(X, regret_dict, title, xlabel, ylabel, plot_var = False):
     plt.legend()
     plt.title(title)
 
-def _init_agents(N_EXPS, N_TASKS, N_BANDITS, HORIZON, N_UNBIASED_OBS, OPT_SIZE, N_EXPERT, DS_NAME, env, quiet=True, **kwargs):
+def _init_agents(N_EXPS, N_TASKS, N_BANDITS, HORIZON, OPT_SIZE, N_EXPERT, DS_NAME, env, quiet=True, **kwargs):
     moss_agent = algos.MOSS(n_bandits=N_BANDITS, horizon=HORIZON)
     EE_agent = algos.EE(n_bandits=N_BANDITS, horizon=HORIZON, 
                             n_tasks=N_TASKS, expert_subsets=env.expert_subsets)
@@ -107,10 +113,10 @@ def _init_agents(N_EXPS, N_TASKS, N_BANDITS, HORIZON, N_UNBIASED_OBS, OPT_SIZE, 
 #     exp3_agent = algos.Exp3(n_bandits=N_BANDITS, horizon=HORIZON, **exp3_kwargs)
 #     exp3_reset_agent = algos.Exp3(n_bandits=N_BANDITS, horizon=HORIZON, is_reset=True)
 #     EWAmaxStats_agent = algos.EWAmaxStats(n_bandits=N_BANDITS, horizon=HORIZON, n_tasks=N_TASKS, 
-#                       n_unbiased_obs=N_UNBIASED_OBS, 
+#                       n_unbiased_obs=kwargs['unbiased_obs'], 
 #                       expert_subsets=env.expert_subsets)
 #     EWAmaxStatsTrick_agent = algos.EWAmaxStats(n_bandits=N_BANDITS, horizon=HORIZON, n_tasks=N_TASKS, 
-#                       n_unbiased_obs=N_UNBIASED_OBS, 
+#                       n_unbiased_obs=kwargs['unbiased_obs'], 
 #                       expert_subsets=env.expert_subsets, update_trick = True)
 #     PMML_EWA_agent = algos.PMML_EWA(n_bandits=N_BANDITS, horizon=HORIZON, n_tasks=N_TASKS,
 #                       expert_subsets=env.expert_subsets)
@@ -190,12 +196,12 @@ def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, quiet, env, ex
 #         cache_dict['PMML_EWA_regrets'][i, j] = PMML_EWA_r[-1]
     return cache_dict
 
-def task_exp(N_EXPS, N_TASKS, N_BANDITS, HORIZON, N_UNBIASED_OBS, OPT_SIZE, N_EXPERT, DS_NAME, quiet=True, **kwargs):
+def task_exp(N_EXPS, N_TASKS, N_BANDITS, HORIZON, OPT_SIZE, N_EXPERT, DS_NAME, quiet=True, **kwargs):
     env = bandit.MetaBernoulli(n_bandits=N_BANDITS, opt_size=OPT_SIZE, n_tasks=N_TASKS, 
                            n_experts=N_EXPERT, ds_name=DS_NAME, **kwargs)
     cache_dict = _init_cache(N_EXPS, N_TASKS)
     for i in trange(N_EXPS):
-        agent_dict = _init_agents(N_EXPS, N_TASKS, N_BANDITS, HORIZON, N_UNBIASED_OBS, OPT_SIZE, N_EXPERT, DS_NAME, env, quiet, **kwargs)
+        agent_dict = _init_agents(N_EXPS, N_TASKS, N_BANDITS, HORIZON, OPT_SIZE, N_EXPERT, DS_NAME, env, quiet, **kwargs)
         cache_dict = _collect_data(agent_dict, cache_dict, i, None, N_TASKS, HORIZON, quiet, env, TASK_EXP)
     X = np.arange(N_TASKS)
     if N_EXPERT is None:
@@ -220,7 +226,7 @@ def task_exp(N_EXPS, N_TASKS, N_BANDITS, HORIZON, N_UNBIASED_OBS, OPT_SIZE, N_EX
     return (X, regret_dict, title, xlabel, ylabel)
 
 
-def horizon_exp(N_EXPS, N_TASKS, N_BANDITS, N_UNBIASED_OBS, OPT_SIZE, N_EXPERT, DS_NAME, horizon_list = np.arange(1,202,50)*10, quiet=True, **kwargs):
+def horizon_exp(N_EXPS, N_TASKS, N_BANDITS, OPT_SIZE, N_EXPERT, DS_NAME, horizon_list = np.arange(1,202,50)*10, quiet=True, **kwargs):
     cache_dict = _init_cache(N_EXPS, horizon_list.shape[0])
     for i in trange(N_EXPS):
         for j, h in enumerate(horizon_list):
@@ -229,7 +235,7 @@ def horizon_exp(N_EXPS, N_TASKS, N_BANDITS, N_UNBIASED_OBS, OPT_SIZE, N_EXPERT, 
             print(f'gap = {tmp}')
             env = bandit.MetaBernoulli(n_bandits=N_BANDITS, opt_size=OPT_SIZE, n_tasks=N_TASKS, 
                                    n_experts=N_EXPERT, ds_name=DS_NAME, **kwargs)
-            agent_dict = _init_agents(N_EXPS, N_TASKS, N_BANDITS, h, N_UNBIASED_OBS, OPT_SIZE, N_EXPERT, DS_NAME, env, quiet, **kwargs)
+            agent_dict = _init_agents(N_EXPS, N_TASKS, N_BANDITS, h, OPT_SIZE, N_EXPERT, DS_NAME, env, quiet, **kwargs)
             cache_dict = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, h, quiet, env, HORIZON_EXP)
     X = horizon_list
     if N_EXPERT is None:
@@ -251,14 +257,14 @@ def horizon_exp(N_EXPS, N_TASKS, N_BANDITS, N_UNBIASED_OBS, OPT_SIZE, N_EXPERT, 
     return (X, regret_dict, title, xlabel, ylabel)
 
 
-def arm_exp(N_EXPS, N_TASKS, HORIZON, N_UNBIASED_OBS, OPT_SIZE, N_EXPERT, DS_NAME, n_bandits_list = np.arange(8,69,15), quiet=True, **kwargs):
+def arm_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, N_EXPERT, DS_NAME, n_bandits_list = np.arange(8,69,15), quiet=True, **kwargs):
     cache_dict = _init_cache(N_EXPS, n_bandits_list.shape[0])
     for i in trange(N_EXPS):
         for j, b in enumerate(n_bandits_list):
             kwargs['gap_constrain'] = min(1,np.sqrt(b*np.log(N_TASKS)/HORIZON))
             env = bandit.MetaBernoulli(n_bandits=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, 
                                n_experts=N_EXPERT, ds_name=DS_NAME, **kwargs)
-            agent_dict = _init_agents(N_EXPS, N_TASKS, b, HORIZON, N_UNBIASED_OBS, OPT_SIZE, N_EXPERT, DS_NAME, env, quiet, **kwargs)
+            agent_dict = _init_agents(N_EXPS, N_TASKS, b, HORIZON, OPT_SIZE, N_EXPERT, DS_NAME, env, quiet, **kwargs)
             cache_dict = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, HORIZON, quiet, env, ARM_EXP)
     X = n_bandits_list
     if N_EXPERT is None:
@@ -280,7 +286,7 @@ def arm_exp(N_EXPS, N_TASKS, HORIZON, N_UNBIASED_OBS, OPT_SIZE, N_EXPERT, DS_NAM
     return (X, regret_dict, title, xlabel, ylabel)
 
 
-def subset_size_exp(N_EXPS, N_TASKS, N_BANDITS, HORIZON, N_UNBIASED_OBS, N_EXPERT, DS_NAME, opt_size_list = None, quiet=True, **kwargs):
+def subset_size_exp(N_EXPS, N_TASKS, N_BANDITS, HORIZON, N_EXPERT, DS_NAME, opt_size_list = None, quiet=True, **kwargs):
     if opt_size_list is None:
         opt_size_list = np.arange(1,N_BANDITS+1,4)
     cache_dict = _init_cache(N_EXPS, opt_size_list.shape[0])
@@ -288,7 +294,7 @@ def subset_size_exp(N_EXPS, N_TASKS, N_BANDITS, HORIZON, N_UNBIASED_OBS, N_EXPER
         for j, s in enumerate(opt_size_list):
             env = bandit.MetaBernoulli(n_bandits=N_BANDITS, opt_size=s, n_tasks=N_TASKS, 
                                        n_experts=N_EXPERT, ds_name=DS_NAME, **kwargs)
-            agent_dict = _init_agents(N_EXPS, N_TASKS, N_BANDITS, HORIZON, N_UNBIASED_OBS, s, N_EXPERT, DS_NAME, env, quiet, **kwargs)
+            agent_dict = _init_agents(N_EXPS, N_TASKS, N_BANDITS, HORIZON, s, N_EXPERT, DS_NAME, env, quiet, **kwargs)
             cache_dict = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, HORIZON, quiet, env, SUBSET_EXP)
     X = opt_size_list
     if N_EXPERT is None:
