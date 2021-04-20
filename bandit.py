@@ -134,18 +134,18 @@ class MetaBernoulli(Bernoulli):
         if self.n_experts is None: #All combinations
             tmp = list(combinations(np.arange(self.n_bandits), self.opt_size))
             self.n_experts = len(tmp)
-            self.expert_subgroups = np.asarray(tmp)
+            self.expert_subsets = np.asarray(tmp)
         else:
-            self.expert_subgroups = np.zeros((self.n_experts, self.opt_size))
+            self.expert_subsets = np.zeros((self.n_experts, self.opt_size))
             for i in range(self.n_experts):
-                while True: # Sample a new subgroup, if not appeared before, added to self.expert_subgroups
+                while True: # Sample a new subset, if not appeared before, added to self.expert_subsets
                     tmp = np.random.choice(self.n_bandits, self.opt_size, replace=False)
-                    if any((self.expert_subgroups[:i]==tmp).all(1)) == False:
-                        self.expert_subgroups[i] = tmp
+                    if any((self.expert_subsets[:i]==tmp).all(1)) == False:
+                        self.expert_subsets[i] = tmp
                         break
-            self.expert_subgroups = self.expert_subgroups.astype(int)
-            # Check if The Optimal subgroup (self.opt_indices) is inside the self.expert_subgroups
-            if any((self.expert_subgroups[:]==self.opt_indices).all(1)) == False:
+            self.expert_subsets = self.expert_subsets.astype(int)
+            # Check if The Optimal subset (self.opt_indices) is inside the self.expert_subsets
+            if any((self.expert_subsets[:]==self.opt_indices).all(1)) == False:
                 i = np.random.randint(n_experts)
-                self.expert_subgroups[i] = self.opt_indices
-        print(f'Optimal expert index = {np.where((self.expert_subgroups[:]==self.opt_indices).all(1))[0][0]}')
+                self.expert_subsets[i] = self.opt_indices
+        print(f'Optimal expert index = {np.where((self.expert_subsets[:]==self.opt_indices).all(1))[0][0]}')
