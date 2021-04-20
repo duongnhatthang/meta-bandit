@@ -33,8 +33,6 @@ def rolls_out(agent, env, horizon, quiet):
                 agent.update(a, r)
     if hasattr(agent, 'eps_end_update'):
         agent.eps_end_update(obs)
-    if isinstance(agent, algos.Exp3) == True and agent.is_reset == True:
-        agent.reset()
     regret = np.max(env._p)*horizon - np.sum(rewards)
     return regret
 
@@ -56,31 +54,16 @@ def plot(X, regret_dict, title, xlabel, ylabel, plot_var = False):
     EE_regrets = regret_dict['EE_regrets']
     PMML_regrets = regret_dict['PMML_regrets']
     opt_moss_regrets = regret_dict['opt_moss_regrets']
-#     EWAmaxStats_regrets = regret_dict['EWAmaxStats_regrets']
-#     exp3_regrets = regret_dict['exp3_regrets']
-#     exp3_reset_regrets = regret_dict['exp3_reset_regrets']
-#     EWAmaxStatsTrick_regrets = regret_dict['EWAmaxStatsTrick_regrets']
-#     PMML_EWA_regrets = regret_dict['PMML_EWA_regrets']
 
     moss_Y = np.mean(moss_regrets, axis=0)
     EE_Y = np.mean(EE_regrets, axis=0)
     PMML_Y = np.mean(PMML_regrets, axis=0)
     opt_moss_Y = np.mean(opt_moss_regrets, axis=0)
-#     EWAmaxStats_Y = np.mean(EWAmaxStats_regrets, axis=0)
-#     EWAmaxStatsTrick_Y = np.mean(EWAmaxStatsTrick_regrets, axis=0)
-#     exp3_Y = np.mean(exp3_regrets, axis=0)
-#     exp3_reset_Y = np.mean(exp3_reset_regrets, axis=0)
-#     PMML_EWA_Y = np.mean(PMML_EWA_regrets, axis=0)
     if plot_var == True:
         moss_dY = 2*np.sqrt(np.var(moss_regrets, axis=0))
         EE_dY = 2*np.sqrt(np.var(EE_regrets, axis=0))
         PMML_dY = 2*np.sqrt(np.var(PMML_regrets, axis=0))
         opt_moss_dY = 2*np.sqrt(np.var(opt_moss_regrets, axis=0))
-#         EWAmaxStats_dY = 2*np.sqrt(np.var(EWAmaxStats_regrets, axis=0))
-#         EWAmaxStatsTrick_dY = 2*np.sqrt(np.var(EWAmaxStatsTrick_regrets, axis=0))
-#         exp3_dY = 2*np.sqrt(np.var(exp3_regrets, axis=0))
-#         exp3_reset_dY = 2*np.sqrt(np.var(exp3_reset_regrets, axis=0))
-#         PMML_EWA_dY = 2*np.sqrt(np.var(PMML_EWA_regrets, axis=0))
 
         plt.errorbar(X, moss_Y, moss_dY, fmt='-', color='green', label = "MOSS")
         plt.errorbar(X, EE_Y, EE_dY, fmt='-', color='blue', label = "EE")
@@ -91,12 +74,7 @@ def plot(X, regret_dict, title, xlabel, ylabel, plot_var = False):
         plt.plot(X, EE_Y, '-', color='blue', label = "EE")
         plt.plot(X, PMML_Y, '-', color='red', label = "PMML")
         plt.plot(X, opt_moss_Y, '-', color='black', label = "Optimal MOSS")
-    #     plt.plot(X, EWAmaxStats_Y, '-', color='orange', label = "EWA")
-    #     plt.plot(X, EWAmaxStatsTrick_Y, '-', color='purple', label = "EWA (all data)")
-    #     plt.plot(X, exp3_Y, '-', color='tomato', label = "EXP3")
-    #     plt.plot(X, exp3_reset_Y, '-', color='yellow', label = "EXP3 Reset")
-    #     plt.plot(X, PMML_EWA_Y, '-', color='cyan', label = "PMML")
-        
+
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.legend()
@@ -109,27 +87,11 @@ def _init_agents(N_EXPS, N_TASKS, N_BANDITS, HORIZON, OPT_SIZE, N_EXPERT, DS_NAM
     PMML_agent = algos.PMML(n_bandits=N_BANDITS, horizon=HORIZON, n_tasks=N_TASKS,
                       expert_subsets=env.expert_subsets)
     opt_moss_agent = algos.ExpertMOSS(n_bandits=N_BANDITS, horizon=HORIZON, expert_subset=env.opt_indices)
-#     exp3_kwargs = {'n_tasks':N_TASKS}
-#     exp3_agent = algos.Exp3(n_bandits=N_BANDITS, horizon=HORIZON, **exp3_kwargs)
-#     exp3_reset_agent = algos.Exp3(n_bandits=N_BANDITS, horizon=HORIZON, is_reset=True)
-#     EWAmaxStats_agent = algos.EWAmaxStats(n_bandits=N_BANDITS, horizon=HORIZON, n_tasks=N_TASKS, 
-#                       n_unbiased_obs=kwargs['unbiased_obs'], 
-#                       expert_subsets=env.expert_subsets)
-#     EWAmaxStatsTrick_agent = algos.EWAmaxStats(n_bandits=N_BANDITS, horizon=HORIZON, n_tasks=N_TASKS, 
-#                       n_unbiased_obs=kwargs['unbiased_obs'], 
-#                       expert_subsets=env.expert_subsets, update_trick = True)
-#     PMML_EWA_agent = algos.PMML_EWA(n_bandits=N_BANDITS, horizon=HORIZON, n_tasks=N_TASKS,
-#                       expert_subsets=env.expert_subsets)
     return {
             'moss_agent':moss_agent,
             'EE_agent':EE_agent,
             'opt_moss_agent':opt_moss_agent,
             'PMML_agent':PMML_agent,
-#             'exp3_agent':exp3_agent,
-#             'exp3_reset_agent':exp3_reset_agent,
-#             'EWAmaxStats_agent':EWAmaxStats_agent,
-#             'EWAmaxStatsTrick_agent':EWAmaxStatsTrick_agent,
-#             'PMML_EWA_agent':PMML_EWA_agent,
            }
 
 def _init_cache(N_EXPS, x_axis):
@@ -137,21 +99,11 @@ def _init_cache(N_EXPS, x_axis):
     EE_regrets = np.zeros((N_EXPS, x_axis))
     PMML_regrets = np.zeros((N_EXPS, x_axis))
     opt_moss_regrets = np.zeros((N_EXPS, x_axis))
-#     exp3_reset_regrets = np.zeros((N_EXPS, x_axis))
-#     EWAmaxStats_regrets = np.zeros((N_EXPS, x_axis))
-#     EWAmaxStatsTrick_regrets = np.zeros((N_EXPS, x_axis))
-#     exp3_regrets = np.zeros((N_EXPS, x_axis))
-#     PMML_EWA_regrets = np.zeros((N_EXPS, x_axis))
     return {
         'moss_regrets':moss_regrets,
         'EE_regrets':EE_regrets,
         'PMML_regrets':PMML_regrets,
         'opt_moss_regrets':opt_moss_regrets,
-#         'exp3_reset_regrets':exp3_reset_regrets,
-#         'EWAmaxStats_regrets':EWAmaxStats_regrets,
-#         'EWAmaxStatsTrick_regrets':EWAmaxStatsTrick_regrets,
-#         'exp3_regrets':exp3_regrets,
-#         'PMML_EWA_regrets':PMML_EWA_regrets,
     }
 
 def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, quiet, env, exp_type):
@@ -159,41 +111,21 @@ def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, quiet, env, ex
     EE_r= meta_rolls_out(n_tasks, agent_dict['EE_agent'], env, HORIZON, quiet)
     PMML_r= meta_rolls_out(n_tasks, agent_dict['PMML_agent'], env, HORIZON, quiet)
     opt_moss_r = meta_rolls_out(n_tasks, agent_dict['opt_moss_agent'], env, HORIZON, quiet)
-#     EWAmaxStats_r = meta_rolls_out(n_tasks, agent_dict['EWAmaxStats_agent'], env, HORIZON, quiet)
-#     PMML_r = meta_rolls_out(n_tasks, agent_dict['EWAmaxStatsTrick_agent'], env, HORIZON, quiet)
-#     exp3_r = meta_rolls_out(n_tasks, agent_dict['exp3_agent'], env, HORIZON, quiet)
-#     exp3_reset_r = meta_rolls_out(n_tasks, agent_dict['exp3_reset_agent'], env, HORIZON, quiet)
-#     PMML_EWA_r = meta_rolls_out(n_tasks, agent_dict['PMML_EWA_agent'], env, HORIZON, quiet)
     if exp_type == TASK_EXP:
         cache_dict['moss_regrets'][i] = moss_r
         cache_dict['EE_regrets'][i] = EE_r
         cache_dict['PMML_regrets'][i] = PMML_r
         cache_dict['opt_moss_regrets'][i] = opt_moss_r
-#         cache_dict['EWAmaxStats_regrets'][i] = EWAmaxStats_r
-#         cache_dict['EWAmaxStatsTrick_regrets'][i] = PMML_r
-#         cache_dict['exp3_regrets'][i] = exp3_r
-#         cache_dict['exp3_reset_regrets'][i] = exp3_reset_r
-#         cache_dict['PMML_EWA_regrets'][i] = PMML_EWA_r
     elif exp_type == HORIZON_EXP:
         cache_dict['moss_regrets'][i, j] = moss_r[-1]/HORIZON
         cache_dict['EE_regrets'][i, j] = EE_r[-1]/HORIZON
         cache_dict['PMML_regrets'][i, j] = PMML_r[-1]/HORIZON
         cache_dict['opt_moss_regrets'][i, j] = opt_moss_r[-1]/HORIZON
-#         cache_dict['EWAmaxStats_regrets'][i, j] = EWAmaxStats_r[-1]/HORIZON
-#         cache_dict['EWAmaxStatsTrick_regrets'][i, j] = PMML_r[-1]/HORIZON
-#         cache_dict['exp3_regrets'][i, j] = exp3_r[-1]/HORIZON
-#         cache_dict['exp3_reset_regrets'][i, j] = exp3_reset_r[-1]/HORIZON
-#         cache_dict['PMML_EWA_regrets'][i, j] = PMML_EWA_r[-1]/HORIZON
     else:
         cache_dict['moss_regrets'][i, j] = moss_r[-1]
         cache_dict['EE_regrets'][i, j] = EE_r[-1]
         cache_dict['PMML_regrets'][i, j] = PMML_r[-1]
         cache_dict['opt_moss_regrets'][i, j] = opt_moss_r[-1]
-#         cache_dict['EWAmaxStats_regrets'][i, j] = EWAmaxStats_r[-1]
-#         cache_dict['EWAmaxStatsTrick_regrets'][i, j] = PMML_r[-1]
-#         cache_dict['exp3_regrets'][i, j] = exp3_r[-1]
-#         cache_dict['exp3_reset_regrets'][i, j] = exp3_reset_r[-1]
-#         cache_dict['PMML_EWA_regrets'][i, j] = PMML_EWA_r[-1]
     return cache_dict
 
 def task_exp(N_EXPS, N_TASKS, N_BANDITS, HORIZON, OPT_SIZE, N_EXPERT, DS_NAME, quiet=True, **kwargs):
@@ -216,11 +148,6 @@ def task_exp(N_EXPS, N_TASKS, N_BANDITS, HORIZON, OPT_SIZE, N_EXPERT, DS_NAME, q
         'EE_regrets':cache_dict['EE_regrets'][:,indices],
         'PMML_regrets':cache_dict['PMML_regrets'][:,indices],
         'opt_moss_regrets':cache_dict['opt_moss_regrets'][:,indices],
-#         'EWAmaxStats_regrets':cache_dict['EWAmaxStats_regrets'][:,indices],
-#         'EWAmaxStatsTrick_regrets':cache_dict['EWAmaxStatsTrick_regrets'][:,indices],
-#         'exp3_regrets':cache_dict['exp3_regrets'][:,indices],
-#         'exp3_reset_regrets':cache_dict['exp3_reset_regrets'][:,indices],
-#         'PMML_EWA_regrets':cache_dict['PMML_EWA_regrets'][:,indices],
     }
     plot(X[indices], regret_dict, title, xlabel, ylabel, kwargs['plot_var'])
     return (X, regret_dict, title, xlabel, ylabel)
@@ -247,11 +174,6 @@ def horizon_exp(N_EXPS, N_TASKS, N_BANDITS, OPT_SIZE, N_EXPERT, DS_NAME, horizon
         'EE_regrets':cache_dict['EE_regrets'],
         'PMML_regrets':cache_dict['PMML_regrets'],
         'opt_moss_regrets':cache_dict['opt_moss_regrets'],
-#         'EWAmaxStats_regrets':cache_dict['EWAmaxStats_regrets'],
-#         'EWAmaxStatsTrick_regrets':cache_dict['EWAmaxStatsTrick_regrets'],
-#         'exp3_regrets':cache_dict['exp3_regrets'],
-#         'exp3_reset_regrets':cache_dict['exp3_reset_regrets'],
-#         'PMML_EWA_regrets':cache_dict['PMML_EWA_regrets'],
     }
     plot(X, regret_dict, title, xlabel, ylabel, kwargs['plot_var'])
     return (X, regret_dict, title, xlabel, ylabel)
@@ -276,11 +198,6 @@ def arm_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, N_EXPERT, DS_NAME, n_bandits_lis
         'EE_regrets':cache_dict['EE_regrets'],
         'PMML_regrets':cache_dict['PMML_regrets'],
         'opt_moss_regrets':cache_dict['opt_moss_regrets'],
-#         'EWAmaxStats_regrets':cache_dict['EWAmaxStats_regrets'],
-#         'EWAmaxStatsTrick_regrets':cache_dict['EWAmaxStatsTrick_regrets'],
-#         'exp3_regrets':cache_dict['exp3_regrets'],
-#         'exp3_reset_regrets':cache_dict['exp3_reset_regrets'],
-#         'PMML_EWA_regrets':cache_dict['PMML_EWA_regrets'],
     }
     plot(X, regret_dict, title, xlabel, ylabel, kwargs['plot_var'])
     return (X, regret_dict, title, xlabel, ylabel)
@@ -307,11 +224,6 @@ def subset_size_exp(N_EXPS, N_TASKS, N_BANDITS, HORIZON, N_EXPERT, DS_NAME, opt_
         'EE_regrets':cache_dict['EE_regrets'],
         'PMML_regrets':cache_dict['PMML_regrets'],
         'opt_moss_regrets':cache_dict['opt_moss_regrets'],
-#         'EWAmaxStats_regrets':cache_dict['EWAmaxStats_regrets'],
-#         'EWAmaxStatsTrick_regrets':cache_dict['EWAmaxStatsTrick_regrets'],
-#         'exp3_regrets':cache_dict['exp3_regrets'],
-#         'exp3_reset_regrets':cache_dict['exp3_reset_regrets'],
-#         'PMML_EWA_regrets':cache_dict['PMML_EWA_regrets'],
     }
     plot(X, regret_dict, title, xlabel, ylabel, kwargs['plot_var'])
     return (X, regret_dict, title, xlabel, ylabel)
