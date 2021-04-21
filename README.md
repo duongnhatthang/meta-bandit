@@ -1,14 +1,16 @@
 # Learning with a small set of optimal arms
 
-Our algorithm, Partial Mornitoring Meta Learning (PMML):
+## Regret bound of Partial Mornitoring Meta Learning (PMML):
 - In the agnostic case, with the choice of <a href="https://www.codecogs.com/eqnedit.php?latex=\delta=O\left(\left(\frac{C_{3}^{2}&space;\log&space;Z}{C_{2}^{2}&space;N}\right)^{1&space;/&space;3}\right)" target="_blank"><img src="https://latex.codecogs.com/svg.latex?\delta=O\left(\left(\frac{C_{3}^{2}&space;\log&space;Z}{C_{2}^{2}&space;N}\right)^{1&space;/&space;3}\right)" title="\delta=O\left(\left(\frac{C_{3}^{2} \log Z}{C_{2}^{2} N}\right)^{1 / 3}\right)" /></a> and <a href="https://www.codecogs.com/eqnedit.php?latex=\eta=O\left(\left(\frac{\log&space;^{2}&space;Z}{C_{2}&space;C_{3}^{2}&space;N^{2}}\right)^{1&space;/&space;3}\right)" target="_blank"><img src="https://latex.codecogs.com/svg.latex?\eta=O\left(\left(\frac{\log&space;^{2}&space;Z}{C_{2}&space;C_{3}^{2}&space;N^{2}}\right)^{1&space;/&space;3}\right)" title="\eta=O\left(\left(\frac{\log ^{2} Z}{C_{2} C_{3}^{2} N^{2}}\right)^{1 / 3}\right)" /></a>, the regret of the PMML is bounded as <a href="https://www.codecogs.com/eqnedit.php?latex=O\left(\left(C_{2}&space;C_{3}^{2}&space;N^{2}&space;\log&space;Z\right)^{1&space;/&space;3}\right)" target="_blank"><img src="https://latex.codecogs.com/svg.latex?O\left(\left(C_{2}&space;C_{3}^{2}&space;N^{2}&space;\log&space;Z\right)^{1&space;/&space;3}\right)" title="O\left(\left(C_{2} C_{3}^{2} N^{2} \log Z\right)^{1 / 3}\right)" /></a>
 
 - In the realizable case, with the choice of <a href="https://www.codecogs.com/eqnedit.php?latex=\delta=\sqrt{\frac{C_{3}&space;\log&space;Z}{C_{2}&space;N}}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?\delta=\sqrt{\frac{C_{3}&space;\log&space;Z}{C_{2}&space;N}}" title="\delta=\sqrt{\frac{C_{3} \log Z}{C_{2} N}}" /></a> and <a href="https://www.codecogs.com/eqnedit.php?latex=\eta&space;=&space;1" target="_blank"><img src="https://latex.codecogs.com/svg.latex?\eta&space;=&space;1" title="\eta = 1" /></a>, the regret of the algorithm is bounded as <a href="https://www.codecogs.com/eqnedit.php?latex=O\left(\sqrt{C_{2}&space;C_{3}&space;N&space;\log&space;Z}\right)" target="_blank"><img src="https://latex.codecogs.com/svg.latex?O\left(\sqrt{C_{2}&space;C_{3}&space;N&space;\log&space;Z}\right)" title="O\left(\sqrt{C_{2} C_{3} N \log Z}\right)" /></a>
 
-Task Experiment             |  Horizon Experiment
+## Experiment results:
+
+**Task Experiment**             |  **Horizon Experiment**
 :-------------------------:|:-------------------------:
 ![](https://github.com/duongnhatthang/meta-bandit/blob/super_clean/results/task_exp_cache.png)  |  ![](https://github.com/duongnhatthang/meta-bandit/blob/super_clean/results/horizon_exp_cache.png)
-Arms Experiment             |  Subset Experiment
+**Arms Experiment**             |  **Subset Experiment**
 ![](https://github.com/duongnhatthang/meta-bandit/blob/super_clean/results/arms_exp_cache.png)  |  ![](https://github.com/duongnhatthang/meta-bandit/blob/super_clean/results/subset_exp_cache.png)
 
 Details of the algorithm and the experimental settings can be found in our following paper(add link later):
@@ -54,4 +56,4 @@ Details of the algorithm and the experimental settings can be found in our follo
     python eval.py --exp=subset --noLoadCache --nTasks=100 --nArms=5 --nExps=2 --horizon=100
     ```
 
-## License: Apache 2.0
+## License: [Apache 2.0](https://github.com/duongnhatthang/meta-bandit/blob/super_clean/LICENSE)
