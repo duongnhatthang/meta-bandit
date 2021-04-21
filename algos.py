@@ -3,15 +3,15 @@ from scipy.special import softmax
 
 
 class MOSS:
-    def __init__(self, n_bandits, horizon):
-        self.n_bandits = n_bandits
+    def __init__(self, n_arms, horizon):
+        self.n_arms = n_arms
         self.horizon = horizon
 
     def get_action(self, obs):
         mu = obs[::2]
         T = obs[1::2]
         T[T == 0] = 1e-6
-        log_plus = np.log(np.maximum(1, self.horizon / (self.n_bandits * T)))
+        log_plus = np.log(np.maximum(1, self.horizon / (self.n_arms * T)))
         index = mu + np.sqrt(4 * log_plus / T)
         return np.argmax(index)
 
@@ -21,8 +21,8 @@ class ExpertMOSS(MOSS):
     Assign the index of all arms outside of expert_subset as min_index
     """
 
-    def __init__(self, n_bandits, horizon, expert_subset, min_index=-1000):
-        super().__init__(n_bandits, horizon)
+    def __init__(self, n_arms, horizon, expert_subset, min_index=-1000):
+        super().__init__(n_arms, horizon)
         self.expert_subset = expert_subset
         self.min_index = min_index
 
@@ -30,9 +30,9 @@ class ExpertMOSS(MOSS):
         mu = obs[::2]
         T = obs[1::2]
         T[T == 0] = 1e-6
-        log_plus = np.log(np.maximum(1, self.horizon / (self.n_bandits * T)))
+        log_plus = np.log(np.maximum(1, self.horizon / (self.n_arms * T)))
         index = mu + np.sqrt(4 * log_plus / T)
-        mask = np.ones((self.n_bandits,))
+        mask = np.ones((self.n_arms,))
         mask[self.expert_subset] = 0
         mask = mask.astype(bool)
         index[mask] = self.min_index
@@ -40,8 +40,8 @@ class ExpertMOSS(MOSS):
 
 
 class PhaseElim:
-    def __init__(self, n_bandits, horizon, C=1, min_index=-1000):
-        self.n_bandits = n_bandits
+    def __init__(self, n_arms, horizon, C=1, min_index=-1000):
+        self.n_arms = n_arms
         self.horizon = horizon
         self.C = C
         self.reset()
@@ -50,8 +50,8 @@ class PhaseElim:
     def reset(self):
         self.ml_counter = -1
         self.cur_l = 1  # phase counter
-        self.A_l = np.arange(self.n_bandits)
-        self.cur_mu = np.zeros((self.n_bandits,))  # Tracking mu in one phase
+        self.A_l = np.arange(self.n_arms)
+        self.cur_mu = np.zeros((self.n_arms,))  # Tracking mu in one phase
         self.cur_phase_actions = np.repeat(
             self.A_l, self._get_ml()
         )  # get 'ml' observations from each arm in the self.A_l
@@ -60,7 +60,7 @@ class PhaseElim:
         return round(
             self.C
             * 2 ** (2 * self.cur_l)
-            * np.log(max(np.exp(1), self.n_bandits * self.horizon * 2 ** (-2 * self.cur_l)))
+            * np.log(max(np.exp(1), self.n_arms * self.horizon * 2 ** (-2 * self.cur_l)))
         )
 
     def _eliminate(self):
@@ -71,7 +71,7 @@ class PhaseElim:
         self.A_l = np.setdiff1d(
             self.A_l, eliminate_arm_index
         )  # yields the elements in `self.A_l` that are NOT in `eliminate_arm_index`
-        self.cur_mu = np.zeros((self.n_bandits,))
+        self.cur_mu = np.zeros((self.n_arms,))
         self.cur_mu[eliminate_arm_index] = self.min_index
 
     def get_action(self, obs):
@@ -96,19 +96,19 @@ class EE:
     - => Then only run EXT
     """
 
-    def __init__(self, n_bandits, horizon, n_tasks, expert_subsets, C=1, min_index=-1000):
+    def __init__(self, n_arms, horizon, n_tasks, expert_subsets, C=1, min_index=-1000):
         self.min_index = min_index
-        self.n_bandits = n_bandits
+        self.n_arms = n_arms
         self.horizon = horizon
         self.expert_subsets = expert_subsets
         self.n_experts = self.expert_subsets.shape[0]
         self.n_tasks = n_tasks
-        self.PE_algo = PhaseElim(n_bandits, horizon, C, min_index)
+        self.PE_algo = PhaseElim(n_arms, horizon, C, min_index)
         self.reset()
-        self.MOSS_algo = MOSS(self.n_bandits, self.horizon)
+        self.MOSS_algo = MOSS(self.n_arms, self.horizon)
         self.subset_size = expert_subsets[0].shape[0]
         self.C1 = np.sqrt(horizon * self.subset_size)
-        self.C2 = np.sqrt(horizon * n_bandits)
+        self.C2 = np.sqrt(horizon * n_arms)
         self.C3 = horizon
         self._set_is_explore()
 
@@ -144,7 +144,7 @@ class EE:
             else:
                 self.predicted_opt_arms += arms_found.tolist()
                 self.predicted_opt_arms = list(set(self.predicted_opt_arms))
-            self.MOSS_algo = ExpertMOSS(self.n_bandits, self.horizon, self.predicted_opt_arms, self.min_index)
+            self.MOSS_algo = ExpertMOSS(self.n_arms, self.horizon, self.predicted_opt_arms, self.min_index)
         self.PE_algo.reset()
         self.cur_task += 1
         self._set_is_explore()
@@ -162,8 +162,8 @@ class PMML_EWA:
      - Only update statistic at EXR round
     """
 
-    def __init__(self, n_bandits, horizon, n_tasks, expert_subsets, C=1, min_index=-1000):
-        self.n_bandits = n_bandits
+    def __init__(self, n_arms, horizon, n_tasks, expert_subsets, C=1, min_index=-1000):
+        self.n_arms = n_arms
         self.horizon = horizon
         self.n_tasks = n_tasks
         self.expert_subsets = expert_subsets
@@ -171,12 +171,12 @@ class PMML_EWA:
         self.n_experts = self.expert_subsets.shape[0]
         self.min_index = min_index
         self.C1 = np.sqrt(horizon * self.subset_size)
-        self.C2 = np.sqrt(horizon * n_bandits)
+        self.C2 = np.sqrt(horizon * n_arms)
         self.C3 = horizon
         self.learning_rate = self._default_learning_rate()
         self.tracking_stats = np.zeros((self.n_experts + 1,))  # Last expert is EXR
         self.tracking_stats[-1] = 1
-        self.PE_algo = PhaseElim(n_bandits, horizon, C, min_index)
+        self.PE_algo = PhaseElim(n_arms, horizon, C, min_index)
         self.reset()
         self.delta_n = self._get_delta_n()
         assert (
@@ -210,7 +210,7 @@ class PMML_EWA:
         self.cur_subset_index = np.random.choice(self.n_experts + 1, p=self.P_n)
         if self.cur_subset_index < self.n_experts:  # EXT: exploit
             cur_subset = self.expert_subsets[self.cur_subset_index]
-            self.cur_algo = ExpertMOSS(self.n_bandits, self.horizon, cur_subset)
+            self.cur_algo = ExpertMOSS(self.n_arms, self.horizon, cur_subset)
         else:  # EXR: explore
             self.cur_algo = self.PE_algo
 
@@ -257,8 +257,8 @@ class PMML(PMML_EWA):
     Remove all experts not contain the surviving arms returned by Phase Elimination
     """
 
-    def __init__(self, n_bandits, horizon, n_tasks, expert_subsets, C=1, min_index=-1000):
-        super().__init__(n_bandits, horizon, n_tasks, expert_subsets, C, min_index)
+    def __init__(self, n_arms, horizon, n_tasks, expert_subsets, C=1, min_index=-1000):
+        super().__init__(n_arms, horizon, n_tasks, expert_subsets, C, min_index)
         self.surviving_experts = np.arange(self.n_experts)
 
     def _update_tracking_stats(self, obs):
@@ -267,7 +267,7 @@ class PMML(PMML_EWA):
         self.surviving_experts = np.intersect1d(self.surviving_experts, surviving_experts)
         if self.surviving_experts.shape[0] == 1:  # stop Exploration after finding the correct expert
             cur_subset = self.expert_subsets[self.surviving_experts[0]]
-            self.cur_algo = ExpertMOSS(self.n_bandits, self.horizon, cur_subset)
+            self.cur_algo = ExpertMOSS(self.n_arms, self.horizon, cur_subset)
         else:
             temp = np.ones_like(self.tracking_stats) * self.min_index
             temp[self.surviving_experts] = self.tracking_stats[self.surviving_experts]
