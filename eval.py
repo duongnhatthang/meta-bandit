@@ -103,7 +103,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp", help="choose experiment (task, horizon, arms, and subset)", type=str, default="task")
     parser.add_argument("--loadCache", dest="loadCache", action="store_true")
-    parser.add_argument("--noLoadCache", dest="loadCache", action="store_false")
+    parser.add_argument("--notLoadCache", dest="loadCache", action="store_false")
     parser.set_defaults(loadCache=False)
     parser.add_argument("--nTasks", help="number of tasks", type=int, default=1000)
     parser.add_argument("--nArms", help="number of arms", type=int, default=5)
