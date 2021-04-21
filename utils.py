@@ -1,9 +1,10 @@
+import inspect
+
 import algos
 import bandit
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import trange
-import inspect
 
 
 TASK_EXP = 0
@@ -138,22 +139,16 @@ def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, quiet, env, ex
 
 
 def task_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, N_EXPERT, quiet=True, **kwargs):
-    env = bandit.MetaBernoulli(
-        n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs
-    )
+    env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs)
     cache_dict = _init_cache(N_EXPS, N_TASKS)
     for i in trange(N_EXPS):
-        agent_dict = _init_agents(
-            N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, N_EXPERT, env, quiet, **kwargs
-        )
+        agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, N_EXPERT, env, quiet, **kwargs)
         cache_dict = _collect_data(agent_dict, cache_dict, i, None, N_TASKS, HORIZON, quiet, env, TASK_EXP)
     X = np.arange(N_TASKS)
     if N_EXPERT is None:
         N_EXPERT = env.n_experts
     gap = kwargs["gap_constrain"]
-    title = (
-        f"Regret: {N_ARMS} arms, horizon {HORIZON}, {N_EXPERT} experts, gap = {gap:.3f} and subset size {OPT_SIZE}"
-    )
+    title = f"Regret: {N_ARMS} arms, horizon {HORIZON}, {N_EXPERT} experts, gap = {gap:.3f} and subset size {OPT_SIZE}"
     xlabel, ylabel = "Number of tasks", "Average Regret per task"
     step = kwargs["task_cache_step"]
     indices = np.arange(0, X.shape[0], step).astype(int)
@@ -183,15 +178,15 @@ def horizon_exp(
             kwargs["gap_constrain"] = min(1, np.sqrt(N_ARMS * np.log(N_TASKS) / h))
             tmp = kwargs["gap_constrain"]
             print(f"gap = {tmp}")
-            env = bandit.MetaBernoulli(
-                n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs
-            )
+            env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs)
             agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, h, OPT_SIZE, N_EXPERT, env, quiet, **kwargs)
             cache_dict = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, h, quiet, env, HORIZON_EXP)
     X = horizon_list
     if N_EXPERT is None:
         N_EXPERT = env.n_experts
-    title = f"Regret: {N_ARMS} arms, {N_TASKS} tasks, {N_EXPERT} experts, gap cond. satisfied and subset size {OPT_SIZE}"
+    title = (
+        f"Regret: {N_ARMS} arms, {N_TASKS} tasks, {N_EXPERT} experts, gap cond. satisfied and subset size {OPT_SIZE}"
+    )
     xlabel, ylabel = "Horizon", "Average Regret per Step"
     regret_dict = {
         "moss_regrets": cache_dict["moss_regrets"],
@@ -203,16 +198,12 @@ def horizon_exp(
     return (X, regret_dict, title, xlabel, ylabel)
 
 
-def arms_exp(
-    N_EXPS, N_TASKS, HORIZON, OPT_SIZE, N_EXPERT, n_arms_list=np.arange(8, 69, 15), quiet=True, **kwargs
-):
+def arms_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, N_EXPERT, n_arms_list=np.arange(8, 69, 15), quiet=True, **kwargs):
     cache_dict = _init_cache(N_EXPS, n_arms_list.shape[0])
     for i in trange(N_EXPS):
         for j, b in enumerate(n_arms_list):
             kwargs["gap_constrain"] = min(1, np.sqrt(b * np.log(N_TASKS) / HORIZON))
-            env = bandit.MetaBernoulli(
-                n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs
-            )
+            env = bandit.MetaBernoulli(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs)
             agent_dict = _init_agents(N_EXPS, N_TASKS, b, HORIZON, OPT_SIZE, N_EXPERT, env, quiet, **kwargs)
             cache_dict = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, HORIZON, quiet, env, ARM_EXP)
     X = n_arms_list
@@ -236,9 +227,7 @@ def subset_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, N_EXPERT, opt_size_list=None, q
     cache_dict = _init_cache(N_EXPS, opt_size_list.shape[0])
     for i in trange(N_EXPS):
         for j, s in enumerate(opt_size_list):
-            env = bandit.MetaBernoulli(
-                n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs
-            )
+            env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs)
             agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, s, N_EXPERT, env, quiet, **kwargs)
             cache_dict = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, HORIZON, quiet, env, SUBSET_EXP)
     X = opt_size_list
