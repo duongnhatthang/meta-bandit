@@ -56,4 +56,4 @@ Details of the algorithm and the experimental settings can be found in our follo
     python eval.py --exp=subset --notLoadCache --nTasks=100 --nArms=5 --nExps=2 --horizon=100
     ```
 
-## License: [Apache 2.0](https://github.com/duongnhatthang/meta-bandit/blob/super_clean/LICENSE)
+## License: [Apache 2.0](https://github.com/duongnhatthang/meta-bandit/blob/main/LICENSE)
