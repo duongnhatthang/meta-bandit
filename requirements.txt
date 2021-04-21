@@ -1,5 +1,5 @@
-pandas
 tqdm
-#matplotlib
 gym
 scipy
+jupyterlab
+matplotlib
