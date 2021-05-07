@@ -46,6 +46,8 @@ class PhaseElim:
         self.C = C
         self.reset()
         self.min_index = min_index
+        if self.n_arms*self._get_ml() > self.horizon:
+            print(f"WARNING (Phased Elimination): phase 1 duration ({self.n_arms*self._get_ml()}) is larger than the horizon ({self.horizon}) => increase horizon and/or change n_arms.")
 
     def reset(self):
         self.ml_counter = -1
@@ -280,3 +282,88 @@ class PMML(PMML_EWA):
         if self.surviving_experts.shape[0] > 1:  # Only EWA to select expert if there are more than 1 surviving
             self._select_expert()
         self.reset()
+
+
+class GML:
+    """
+    Greedy algorithm for bandit meta-learning
+    """
+
+    def __init__(self, n_arms, horizon, n_tasks, expert_subsets, C=1, min_index=-1000):
+        self.n_arms = n_arms
+        self.horizon = horizon
+        self.n_tasks = n_tasks
+        self.expert_subsets = expert_subsets
+        self.subset_size = expert_subsets[0].shape[0]
+        self.n_experts = self.expert_subsets.shape[0]
+        self.min_index = min_index
+        self.B_TK = np.sqrt(horizon * self.n_arms)
+        self.tracking_stats = np.zeros((n_tasks,n_arms))
+        self.EXT_set = None
+        self.is_explore = None
+        self.cur_task = 0
+        self.PE_algo = PhaseElim(n_arms, horizon, C, min_index)
+        self.reset()
+        self.select_alg()
+
+    def reset(self):
+        self.PE_algo.reset()
+
+    def find_EXT_set(self):
+        """
+        Greedy algorithm to for Hitting Set Problem.
+        Return set 's' in the paper
+        """
+        M = np.nonzero(np.sum(self.tracking_stats, axis = 0))[0].shape[0] # The number of arms returned by past PE
+        assert M > 0, "Running EXT in the first task"
+        self.EXT_set = []
+        mask = np.zeros((self.n_tasks,), dtype=bool)
+        EXR_idxs = np.nonzero(np.sum(self.tracking_stats, axis = 1))
+        mask[EXR_idxs] = True
+        for i in range(M):
+            tmp = np.sum(self.tracking_stats[mask], axis = 0) # shape = (K,)
+            max_arm_idx = np.argmax(tmp)
+            self.EXT_set.append(max_arm_idx)
+            task_idxs = np.nonzero(self.tracking_stats[:, max_arm_idx]) # make sure axis 0 is correct => correct idxs
+            mask[task_idxs] = False
+            if np.sum(mask)==0: # Covered all tasks
+                break
+
+    def get_EXR_prob(self):
+        if self.cur_task == 0 or self.cur_task > self.n_tasks - 2 : # force EXR
+            return 1
+        self.find_EXT_set()
+        B_Ts = np.sqrt(self.horizon * len(self.EXT_set))
+        # G_{n+1}, the extra "-1" is because cur_task count from 0
+        G = np.sqrt(2*(self.B_TK-B_Ts)*(self.horizon-B_Ts)*(self.n_tasks-self.cur_task-2))
+        p = (self.horizon-B_Ts) / (self.horizon-B_Ts+G)
+        return p
+
+    def set_is_explore(self):
+        p = self.get_EXR_prob()
+        self.is_explore = bool(np.random.choice(2, p=[1 - p, p]))
+
+    def select_alg(self):
+        self.set_is_explore()
+        if self.is_explore:
+            self.cur_algo = self.PE_algo
+        else:
+            self.cur_algo = ExpertMOSS(self.n_arms, self.horizon, self.EXT_set)
+
+    def get_action(self, obs):  # get action for each rolls-out step
+        return self.cur_algo.get_action(obs)
+
+    def eps_end_update(self, obs):  # update the tracking_stats after each rolls-out
+        if self.is_explore:
+            self.update_tracking_stats(obs)
+        self.select_alg()
+        self.reset()
+        self.cur_task += 1
+
+    def update_tracking_stats(self, obs):
+        surviving_arms = self.PE_algo.A_l
+        self.tracking_stats[self.cur_task, surviving_arms] = 1
+
+    def update(self, action, reward):
+        if self.is_explore:
+            self.PE_algo.update(action, reward)
