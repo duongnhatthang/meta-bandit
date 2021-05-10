@@ -143,4 +143,4 @@ class MetaBernoulli(Bernoulli):
             if any((self.expert_subsets[:] == self.opt_indices).all(1)) is False:
                 i = np.random.randint(n_experts)
                 self.expert_subsets[i] = self.opt_indices
-        print(f"Optimal expert index = {np.where((self.expert_subsets[:]==self.opt_indices).all(1))[0][0]}")
+        print(f"Optimal expert index = {np.where((self.expert_subsets[:]==self.opt_indices).all(1))[0][0]}: {self.opt_indices}")

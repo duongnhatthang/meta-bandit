@@ -37,6 +37,7 @@ def rolls_out(agent, env, horizon, quiet):
                 agent.update(a, r)
     if hasattr(agent, "eps_end_update"):
         agent.eps_end_update(obs)
+    agent.reset()
     regret = np.max(env._p) * horizon - np.sum(rewards)
     return regret
 
@@ -77,14 +78,14 @@ def plot(X, regret_dict, title, xlabel, ylabel, plot_var=False):
         plt.errorbar(X, moss_Y, moss_dY, fmt="-", color="green", label="MOSS")
         plt.errorbar(X, EE_Y, EE_dY, fmt="-", color="blue", label="EE")
         plt.errorbar(X, PMML_Y, PMML_dY, fmt="-", color="red", label="PMML")
-        plt.errorbar(X, GML_Y, GML_dY, fmt="-", color="purple", label="GML")
         plt.errorbar(X, opt_moss_Y, opt_moss_dY, fmt="-", color="black", label="Optimal MOSS")
+        plt.errorbar(X, GML_Y, GML_dY, fmt="-", color="purple", label="GML")
     else:
         plt.plot(X, moss_Y, "-", color="green", label="MOSS")
         plt.plot(X, EE_Y, "-", color="blue", label="EE")
         plt.plot(X, PMML_Y, "-", color="red", label="PMML")
-        plt.plot(X, GML_Y, "-", color="purple", label="GML")
         plt.plot(X, opt_moss_Y, "-", color="black", label="Optimal MOSS")
+        plt.plot(X, GML_Y, "-", color="purple", label="GML")
 
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
@@ -135,19 +136,19 @@ def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, quiet, env, ex
         cache_dict["EE_regrets"][i] = EE_r
         cache_dict["PMML_regrets"][i] = PMML_r
         cache_dict["opt_moss_regrets"][i] = opt_moss_r
-        cache_dict["GML_regrets"][i] = opt_moss_r
+        cache_dict["GML_regrets"][i] = GML_r
     elif exp_type == HORIZON_EXP:
         cache_dict["moss_regrets"][i, j] = moss_r[-1] / HORIZON
         cache_dict["EE_regrets"][i, j] = EE_r[-1] / HORIZON
         cache_dict["PMML_regrets"][i, j] = PMML_r[-1] / HORIZON
         cache_dict["opt_moss_regrets"][i, j] = opt_moss_r[-1] / HORIZON
-        cache_dict["GML_regrets"][i, j] = opt_moss_r[-1] / HORIZON
+        cache_dict["GML_regrets"][i, j] = GML_r[-1] / HORIZON
     else:
         cache_dict["moss_regrets"][i, j] = moss_r[-1]
         cache_dict["EE_regrets"][i, j] = EE_r[-1]
         cache_dict["PMML_regrets"][i, j] = PMML_r[-1]
         cache_dict["opt_moss_regrets"][i, j] = opt_moss_r[-1]
-        cache_dict["GML_regrets"][i, j] = opt_moss_r[-1]
+        cache_dict["GML_regrets"][i, j] = GML_r[-1]
     return cache_dict
 
 

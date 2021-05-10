@@ -15,6 +15,9 @@ class MOSS:
         index = mu + np.sqrt(4 * log_plus / T)
         return np.argmax(index)
 
+    def reset(self):
+        pass
+
 
 class ExpertMOSS(MOSS):
     """
@@ -112,12 +115,12 @@ class EE:
         self.C1 = np.sqrt(horizon * self.subset_size)
         self.C2 = np.sqrt(horizon * n_arms)
         self.C3 = horizon
+        self.predicted_opt_arms = []
+        self.cur_task = 0
         self._set_is_explore()
 
     def reset(self):
         self.PE_algo.reset()
-        self.predicted_opt_arms = []
-        self.cur_task = 0
 
     def _get_delta_n(self):
         if self.n_tasks == self.cur_task:
@@ -147,7 +150,6 @@ class EE:
                 self.predicted_opt_arms += arms_found.tolist()
                 self.predicted_opt_arms = list(set(self.predicted_opt_arms))
             self.MOSS_algo = ExpertMOSS(self.n_arms, self.horizon, self.predicted_opt_arms, self.min_index)
-        self.PE_algo.reset()
         self.cur_task += 1
         self._set_is_explore()
 
@@ -223,7 +225,6 @@ class PMML_EWA:
         if self.cur_subset_index == self.n_experts:  # EXR: explore
             self._update_tracking_stats(obs)
         self._select_expert()
-        self.reset()
 
     def _get_tilda_c_n(self):
         tilda_c_n = np.zeros((self.n_experts + 1,))
@@ -281,7 +282,6 @@ class PMML(PMML_EWA):
         self._update_tracking_stats(obs)
         if self.surviving_experts.shape[0] > 1:  # Only EWA to select expert if there are more than 1 surviving
             self._select_expert()
-        self.reset()
 
 
 class GML:
@@ -357,7 +357,6 @@ class GML:
         if self.is_explore:
             self.update_tracking_stats(obs)
         self.select_alg()
-        self.reset()
         self.cur_task += 1
 
     def update_tracking_stats(self, obs):
