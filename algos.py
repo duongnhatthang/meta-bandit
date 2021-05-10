@@ -297,7 +297,7 @@ class GML:
         self.subset_size = expert_subsets[0].shape[0]
         self.n_experts = self.expert_subsets.shape[0]
         self.min_index = min_index
-        self.B_TK = np.sqrt(horizon * self.n_arms)
+        self.B_TK = np.sqrt(horizon * self.n_arms * np.log(self.n_arms)) 
         self.tracking_stats = np.zeros((n_tasks,n_arms))
         self.EXT_set = None
         self.is_explore = None

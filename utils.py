@@ -77,14 +77,14 @@ def plot(X, regret_dict, title, xlabel, ylabel, plot_var=False):
         plt.errorbar(X, moss_Y, moss_dY, fmt="-", color="green", label="MOSS")
         plt.errorbar(X, EE_Y, EE_dY, fmt="-", color="blue", label="EE")
         plt.errorbar(X, PMML_Y, PMML_dY, fmt="-", color="red", label="PMML")
-        plt.errorbar(X, opt_moss_Y, opt_moss_dY, fmt="-", color="black", label="Optimal MOSS")
         plt.errorbar(X, GML_Y, GML_dY, fmt="-", color="purple", label="GML")
+        plt.errorbar(X, opt_moss_Y, opt_moss_dY, fmt="-", color="black", label="Optimal MOSS")
     else:
         plt.plot(X, moss_Y, "-", color="green", label="MOSS")
         plt.plot(X, EE_Y, "-", color="blue", label="EE")
         plt.plot(X, PMML_Y, "-", color="red", label="PMML")
-        plt.plot(X, opt_moss_Y, "-", color="black", label="Optimal MOSS")
         plt.plot(X, GML_Y, "-", color="purple", label="GML")
+        plt.plot(X, opt_moss_Y, "-", color="black", label="Optimal MOSS")
 
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
