@@ -60,25 +60,30 @@ def plot(X, regret_dict, title, xlabel, ylabel, plot_var=False):
     EE_regrets = regret_dict["EE_regrets"]
     PMML_regrets = regret_dict["PMML_regrets"]
     opt_moss_regrets = regret_dict["opt_moss_regrets"]
+    GML_regrets = regret_dict["GML_regrets"]
 
     moss_Y = np.mean(moss_regrets, axis=0)
     EE_Y = np.mean(EE_regrets, axis=0)
     PMML_Y = np.mean(PMML_regrets, axis=0)
     opt_moss_Y = np.mean(opt_moss_regrets, axis=0)
+    GML_Y = np.mean(GML_regrets, axis=0)
     if plot_var is True:
         moss_dY = 2 * np.sqrt(np.var(moss_regrets, axis=0))
         EE_dY = 2 * np.sqrt(np.var(EE_regrets, axis=0))
         PMML_dY = 2 * np.sqrt(np.var(PMML_regrets, axis=0))
         opt_moss_dY = 2 * np.sqrt(np.var(opt_moss_regrets, axis=0))
+        GML_dY = 2 * np.sqrt(np.var(GML_regrets, axis=0))
 
         plt.errorbar(X, moss_Y, moss_dY, fmt="-", color="green", label="MOSS")
         plt.errorbar(X, EE_Y, EE_dY, fmt="-", color="blue", label="EE")
         plt.errorbar(X, PMML_Y, PMML_dY, fmt="-", color="red", label="PMML")
+        plt.errorbar(X, GML_Y, GML_dY, fmt="-", color="purple", label="GML")
         plt.errorbar(X, opt_moss_Y, opt_moss_dY, fmt="-", color="black", label="Optimal MOSS")
     else:
         plt.plot(X, moss_Y, "-", color="green", label="MOSS")
         plt.plot(X, EE_Y, "-", color="blue", label="EE")
         plt.plot(X, PMML_Y, "-", color="red", label="PMML")
+        plt.plot(X, GML_Y, "-", color="purple", label="GML")
         plt.plot(X, opt_moss_Y, "-", color="black", label="Optimal MOSS")
 
     plt.xlabel(xlabel)
@@ -94,11 +99,13 @@ def _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, N_EXPERT, env, quie
     EE_agent = algos.EE(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS, expert_subsets=env.expert_subsets)
     PMML_agent = algos.PMML(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS, expert_subsets=env.expert_subsets)
     opt_moss_agent = algos.ExpertMOSS(n_arms=N_ARMS, horizon=HORIZON, expert_subset=env.opt_indices)
+    GML_agent = algos.GML(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS, expert_subsets=env.expert_subsets)
     return {
         "moss_agent": moss_agent,
         "EE_agent": EE_agent,
         "opt_moss_agent": opt_moss_agent,
         "PMML_agent": PMML_agent,
+        "GML_agent": GML_agent,
     }
 
 
@@ -107,11 +114,13 @@ def _init_cache(N_EXPS, x_axis):
     EE_regrets = np.zeros((N_EXPS, x_axis))
     PMML_regrets = np.zeros((N_EXPS, x_axis))
     opt_moss_regrets = np.zeros((N_EXPS, x_axis))
+    GML_regrets = np.zeros((N_EXPS, x_axis))
     return {
         "moss_regrets": moss_regrets,
         "EE_regrets": EE_regrets,
         "PMML_regrets": PMML_regrets,
         "opt_moss_regrets": opt_moss_regrets,
+        "GML_regrets": GML_regrets,
     }
 
 
@@ -120,21 +129,25 @@ def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, quiet, env, ex
     EE_r = meta_rolls_out(n_tasks, agent_dict["EE_agent"], env, HORIZON, quiet)
     PMML_r = meta_rolls_out(n_tasks, agent_dict["PMML_agent"], env, HORIZON, quiet)
     opt_moss_r = meta_rolls_out(n_tasks, agent_dict["opt_moss_agent"], env, HORIZON, quiet)
+    GML_r = meta_rolls_out(n_tasks, agent_dict["GML_agent"], env, HORIZON, quiet)
     if exp_type == TASK_EXP:
         cache_dict["moss_regrets"][i] = moss_r
         cache_dict["EE_regrets"][i] = EE_r
         cache_dict["PMML_regrets"][i] = PMML_r
         cache_dict["opt_moss_regrets"][i] = opt_moss_r
+        cache_dict["GML_regrets"][i] = opt_moss_r
     elif exp_type == HORIZON_EXP:
         cache_dict["moss_regrets"][i, j] = moss_r[-1] / HORIZON
         cache_dict["EE_regrets"][i, j] = EE_r[-1] / HORIZON
         cache_dict["PMML_regrets"][i, j] = PMML_r[-1] / HORIZON
         cache_dict["opt_moss_regrets"][i, j] = opt_moss_r[-1] / HORIZON
+        cache_dict["GML_regrets"][i, j] = opt_moss_r[-1] / HORIZON
     else:
         cache_dict["moss_regrets"][i, j] = moss_r[-1]
         cache_dict["EE_regrets"][i, j] = EE_r[-1]
         cache_dict["PMML_regrets"][i, j] = PMML_r[-1]
         cache_dict["opt_moss_regrets"][i, j] = opt_moss_r[-1]
+        cache_dict["GML_regrets"][i, j] = opt_moss_r[-1]
     return cache_dict
 
 
@@ -157,6 +170,7 @@ def task_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, N_EXPERT, quiet=True, *
         "EE_regrets": cache_dict["EE_regrets"][:, indices],
         "PMML_regrets": cache_dict["PMML_regrets"][:, indices],
         "opt_moss_regrets": cache_dict["opt_moss_regrets"][:, indices],
+        "GML_regrets": cache_dict["GML_regrets"][:, indices],
     }
     plot(X[indices], regret_dict, title, xlabel, ylabel, kwargs["plot_var"])
     return (X, regret_dict, title, xlabel, ylabel)
@@ -193,6 +207,7 @@ def horizon_exp(
         "EE_regrets": cache_dict["EE_regrets"],
         "PMML_regrets": cache_dict["PMML_regrets"],
         "opt_moss_regrets": cache_dict["opt_moss_regrets"],
+        "GML_regrets": cache_dict["GML_regrets"],
     }
     plot(X, regret_dict, title, xlabel, ylabel, kwargs["plot_var"])
     return (X, regret_dict, title, xlabel, ylabel)
@@ -216,6 +231,7 @@ def arms_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, N_EXPERT, n_arms_list=np.arange
         "EE_regrets": cache_dict["EE_regrets"],
         "PMML_regrets": cache_dict["PMML_regrets"],
         "opt_moss_regrets": cache_dict["opt_moss_regrets"],
+        "GML_regrets": cache_dict["GML_regrets"],
     }
     plot(X, regret_dict, title, xlabel, ylabel, kwargs["plot_var"])
     return (X, regret_dict, title, xlabel, ylabel)
@@ -241,6 +257,7 @@ def subset_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, N_EXPERT, opt_size_list=None, q
         "EE_regrets": cache_dict["EE_regrets"],
         "PMML_regrets": cache_dict["PMML_regrets"],
         "opt_moss_regrets": cache_dict["opt_moss_regrets"],
+        "GML_regrets": cache_dict["GML_regrets"],
     }
     plot(X, regret_dict, title, xlabel, ylabel, kwargs["plot_var"])
     return (X, regret_dict, title, xlabel, ylabel)
