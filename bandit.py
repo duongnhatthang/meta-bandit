@@ -38,9 +38,9 @@ class NoStatBernoulli(Env):
 
     def reset_task(self, idx):
         """ change current env to idx """
-        self.cur_index = int(idx)
-        self._p = self.p_dist[self.cur_index]
-        self._r = self.r_dist[self.cur_index]
+        self.cur_task = int(idx)
+        self._p = self.p_dist[self.cur_task]
+        self._r = self.r_dist[self.cur_task]
         return self.reset()
 
     def reset(self):
@@ -144,3 +144,39 @@ class MetaBernoulli(Bernoulli):
                 i = np.random.randint(n_experts)
                 self.expert_subsets[i] = self.opt_indices
         print(f"Optimal expert index = {np.where((self.expert_subsets[:]==self.opt_indices).all(1))[0][0]}: {self.opt_indices}")
+
+
+class AdvMetaBernoulli(MetaBernoulli):
+
+    def __init__(self, n_arms, opt_size, n_tasks, n_experts, horizon, **kwargs):
+        super().__init__(n_arms, opt_size, n_tasks, n_experts, **kwargs)
+        self.horizon = horizon
+        self.B_TK = np.sqrt(horizon * self.n_arms * np.log(self.n_arms))
+
+    def generate_next_task(self, EXT_set):
+        if self.cur_task > self.n_tasks - 2: # Final task
+            return
+        if EXT_set is None: # First round
+            opt_arm = np.random.choice(self.opt_indices)
+        else:
+            correct_EXT_set = np.intersect1d(self.opt_indices, EXT_set)
+            B_Ts = np.sqrt(self.horizon * len(correct_EXT_set))
+            G = np.sqrt(2*(self.B_TK-B_Ts)*(self.horizon-B_Ts)*(self.n_tasks-self.cur_task-2))
+            q = (self.B_TK-B_Ts) / (self.horizon-B_Ts+G) # probability that next task optimal arm is NOT in correct_EXT_set
+            is_out_of_set = bool(np.random.choice(2, p=[1 - q, q]))
+            inv_correct_EXT_set = np.setdiff1d(self.opt_indices, correct_EXT_set)
+            if len(inv_correct_EXT_set)==0:
+                opt_arm = np.random.choice(correct_EXT_set)
+            else:
+                if is_out_of_set is True or len(correct_EXT_set)==0:
+                    opt_arm = np.random.choice(inv_correct_EXT_set)
+                else:
+                    opt_arm = np.random.choice(correct_EXT_set)
+
+        low = 1e-6
+        if self.gap_constrain is not None:
+            low = self.gap_constrain
+        opt_values = np.random.uniform(low=low)
+        next_p = np.random.uniform(high=opt_values - low, size=(self.n_arms, ))
+        next_p[opt_arm] = opt_values
+        self.p_dist[self.cur_task+1] = next_p
