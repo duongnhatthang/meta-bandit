@@ -105,11 +105,18 @@ if __name__ == "__main__":
     parser.add_argument("--loadCache", dest="loadCache", action="store_true")
     parser.add_argument("--notLoadCache", dest="loadCache", action="store_false")
     parser.set_defaults(loadCache=False)
+    parser.add_argument("--adversarial", dest="isAdversarial", action="store_true")
+    parser.add_argument("--stochastic", dest="isAdversarial", action="store_false")
+    parser.set_defaults(isAdversarial=True)
+    parser.add_argument("--quiet", dest="quiet", action="store_true")
+    parser.add_argument("--notQuiet", dest="quiet", action="store_false")
+    parser.set_defaults(quiet=True)
     parser.add_argument("--nTasks", help="number of tasks", type=int, default=1000)
     parser.add_argument("--nArms", help="number of arms", type=int, default=5)
     parser.add_argument("--nExps", help="number of repeated experiments", type=int, default=10)
     parser.add_argument("--optSize", help="size of the optimal subset", type=int, default=2)
     parser.add_argument("--horizon", help="horizon of each task", type=int, default=250)
+    parser.add_argument("--timeOut", help="maximum minutes per experiment", type=float, default=0.1)
     parser.add_argument(
         "--expArgs", help="arguments for horizon or arms. Example: (a,b,c) => range(a,b,c)", type=str, default=None
     )
@@ -137,13 +144,16 @@ if __name__ == "__main__":
         if args.exp == "horizon" or args.exp == "arms":
             exp_args = json.loads(args.expArgs)
         nExperts = None
-    GAP_THRESHOLD = min(1, np.sqrt(args.nArms * np.log(args.nTasks) / args.horizon) * 1.05)
+    GAP_THRESHOLD = np.sqrt(args.nArms * np.log(args.nTasks) / args.horizon)
     extra_args = {
         "exp_args": exp_args,
         "task_cache_step": 10,
-        "gap_constrain": GAP_THRESHOLD,  # 1.05 is small gap, 1.2 for large
+        "gap_constrain": min(1,GAP_THRESHOLD*1.0005),  # 1.0005 is small gap, 1.2 for large
         "plot_var": True,
         "nExperts": nExperts,
+        "is_adversarial": args.isAdversarial,
+        "timeout": args.timeOut, # maximum duration for each roll-outs. Unit = minute. -1 = unlimited
+        "quiet": args.quiet,
     }
 
     if args.exp == "task":
