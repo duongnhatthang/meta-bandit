@@ -15,6 +15,9 @@ class MOSS:
         index = mu + np.sqrt(4 * log_plus / T)
         return np.argmax(index)
 
+    def reset(self):
+        pass
+
 
 class ExpertMOSS(MOSS):
     """
@@ -112,12 +115,12 @@ class EE:
         self.C1 = np.sqrt(horizon * self.subset_size)
         self.C2 = np.sqrt(horizon * n_arms)
         self.C3 = horizon
+        self.EXT_set = []
+        self.cur_task = 0
         self._set_is_explore()
 
     def reset(self):
         self.PE_algo.reset()
-        self.predicted_opt_arms = []
-        self.cur_task = 0
 
     def _get_delta_n(self):
         if self.n_tasks == self.cur_task:
@@ -132,27 +135,26 @@ class EE:
         self.is_explore = bool(np.random.choice(2, p=[1 - p, p]))
 
     def get_action(self, obs):  # get action for each rolls-out step
-        if self.is_explore and len(self.predicted_opt_arms) < self.subset_size:
+        if self.is_explore and len(self.EXT_set) < self.subset_size:
             return self.PE_algo.get_action(obs)
         else:
             return self.MOSS_algo.get_action(obs)
 
     def eps_end_update(self, obs):  # update the tracking_stats after each rolls-out
-        if self.is_explore and len(self.predicted_opt_arms) < self.subset_size:
+        if self.is_explore and len(self.EXT_set) < self.subset_size:
             arms_found = self.PE_algo.A_l
             if arms_found.shape[0] == 1:
-                if arms_found[0] not in self.predicted_opt_arms:
-                    self.predicted_opt_arms.append(arms_found[0])
+                if arms_found[0] not in self.EXT_set:
+                    self.EXT_set.append(arms_found[0])
             else:
-                self.predicted_opt_arms += arms_found.tolist()
-                self.predicted_opt_arms = list(set(self.predicted_opt_arms))
-            self.MOSS_algo = ExpertMOSS(self.n_arms, self.horizon, self.predicted_opt_arms, self.min_index)
-        self.PE_algo.reset()
+                self.EXT_set += arms_found.tolist()
+                self.EXT_set = list(set(self.EXT_set))
+            self.MOSS_algo = ExpertMOSS(self.n_arms, self.horizon, self.EXT_set, self.min_index)
         self.cur_task += 1
         self._set_is_explore()
 
     def update(self, action, reward):
-        if self.is_explore and len(self.predicted_opt_arms) < self.subset_size:
+        if self.is_explore and len(self.EXT_set) < self.subset_size:
             self.PE_algo.update(action, reward)
 
 
@@ -188,6 +190,7 @@ class PMML_EWA:
         assert (
             self.C1 <= self.C2 and self.C2 <= self.C3
         ), f"C1 ({self.C1}) < C2 ({self.C2}) < C3 ({self.C3}) not satisfied."
+        self.EXT_set = None # For Adversarial setting only
 
     def reset(self):
         self.PE_algo.reset()
@@ -211,8 +214,8 @@ class PMML_EWA:
             self.P_n /= np.sum(self.P_n)
         self.cur_subset_index = np.random.choice(self.n_experts + 1, p=self.P_n)
         if self.cur_subset_index < self.n_experts:  # EXT: exploit
-            cur_subset = self.expert_subsets[self.cur_subset_index]
-            self.cur_algo = ExpertMOSS(self.n_arms, self.horizon, cur_subset)
+            self.EXT_set = self.expert_subsets[self.cur_subset_index]
+            self.cur_algo = ExpertMOSS(self.n_arms, self.horizon, self.EXT_set)
         else:  # EXR: explore
             self.cur_algo = self.PE_algo
 
@@ -223,7 +226,6 @@ class PMML_EWA:
         if self.cur_subset_index == self.n_experts:  # EXR: explore
             self._update_tracking_stats(obs)
         self._select_expert()
-        self.reset()
 
     def _get_tilda_c_n(self):
         tilda_c_n = np.zeros((self.n_experts + 1,))
@@ -268,8 +270,8 @@ class PMML(PMML_EWA):
         surviving_experts = np.where(l_n == 0)[0]
         self.surviving_experts = np.intersect1d(self.surviving_experts, surviving_experts)
         if self.surviving_experts.shape[0] == 1:  # stop Exploration after finding the correct expert
-            cur_subset = self.expert_subsets[self.surviving_experts[0]]
-            self.cur_algo = ExpertMOSS(self.n_arms, self.horizon, cur_subset)
+            self.EXT_set = self.expert_subsets[self.surviving_experts[0]]
+            self.cur_algo = ExpertMOSS(self.n_arms, self.horizon, self.EXT_set)
         else:
             temp = np.ones_like(self.tracking_stats) * self.min_index
             temp[self.surviving_experts] = self.tracking_stats[self.surviving_experts]
@@ -281,7 +283,6 @@ class PMML(PMML_EWA):
         self._update_tracking_stats(obs)
         if self.surviving_experts.shape[0] > 1:  # Only EWA to select expert if there are more than 1 surviving
             self._select_expert()
-        self.reset()
 
 
 class GML:
@@ -357,7 +358,6 @@ class GML:
         if self.is_explore:
             self.update_tracking_stats(obs)
         self.select_alg()
-        self.reset()
         self.cur_task += 1
 
     def update_tracking_stats(self, obs):

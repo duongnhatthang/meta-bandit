@@ -5,6 +5,7 @@ import bandit
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import trange
+from copy import deepcopy
 
 
 TASK_EXP = 0
@@ -37,21 +38,37 @@ def rolls_out(agent, env, horizon, quiet):
                 agent.update(a, r)
     if hasattr(agent, "eps_end_update"):
         agent.eps_end_update(obs)
+    agent.reset()
     regret = np.max(env._p) * horizon - np.sum(rewards)
     return regret
 
 
-def meta_rolls_out(n_tasks, agent, env, horizon, quiet):
+def meta_rolls_out(n_tasks, agent, env, horizon, quiet, is_adversarial):
     """
     Rolls-out n_tasks
     """
     regrets = []
     tmp_regrets = []
+    EXT_set = [] # For adversarial setting
     for idx in range(n_tasks):
         env.reset_task(idx)
         r = rolls_out(agent, env, horizon, quiet)
         tmp_regrets.append(r)
         regrets.append(np.average(tmp_regrets))  # average regret until this task
+        if is_adversarial is True:
+            if isinstance(agent, algos.ExpertMOSS): # Optimal MOSS
+                EXT_set = env.opt_indices
+            elif isinstance(agent, algos.PhaseElim):
+                surviving_arms = agent.A_l
+                EXT_set = list(set(EXT_set+surviving_arms))
+            elif isinstance(agent, algos.MOSS):
+                mu = deepcopy(env.counter)[::2]
+                opt_idx = np.argmax(mu)
+                EXT_set.append(opt_idx)
+                EXT_set = list(set(EXT_set))
+            else:
+                EXT_set = agent.EXT_set
+                env.generate_next_task(EXT_set)
     return regrets
 
 
@@ -77,14 +94,14 @@ def plot(X, regret_dict, title, xlabel, ylabel, plot_var=False):
         plt.errorbar(X, moss_Y, moss_dY, fmt="-", color="green", label="MOSS")
         plt.errorbar(X, EE_Y, EE_dY, fmt="-", color="blue", label="EE")
         plt.errorbar(X, PMML_Y, PMML_dY, fmt="-", color="red", label="PMML")
-        plt.errorbar(X, GML_Y, GML_dY, fmt="-", color="purple", label="GML")
         plt.errorbar(X, opt_moss_Y, opt_moss_dY, fmt="-", color="black", label="Optimal MOSS")
+        plt.errorbar(X, GML_Y, GML_dY, fmt="-", color="purple", label="GML")
     else:
         plt.plot(X, moss_Y, "-", color="green", label="MOSS")
         plt.plot(X, EE_Y, "-", color="blue", label="EE")
         plt.plot(X, PMML_Y, "-", color="red", label="PMML")
-        plt.plot(X, GML_Y, "-", color="purple", label="GML")
         plt.plot(X, opt_moss_Y, "-", color="black", label="Optimal MOSS")
+        plt.plot(X, GML_Y, "-", color="purple", label="GML")
 
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
@@ -124,44 +141,50 @@ def _init_cache(N_EXPS, x_axis):
     }
 
 
-def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, quiet, env, exp_type):
-    moss_r = meta_rolls_out(n_tasks, agent_dict["moss_agent"], env, HORIZON, quiet)
-    EE_r = meta_rolls_out(n_tasks, agent_dict["EE_agent"], env, HORIZON, quiet)
-    PMML_r = meta_rolls_out(n_tasks, agent_dict["PMML_agent"], env, HORIZON, quiet)
-    opt_moss_r = meta_rolls_out(n_tasks, agent_dict["opt_moss_agent"], env, HORIZON, quiet)
-    GML_r = meta_rolls_out(n_tasks, agent_dict["GML_agent"], env, HORIZON, quiet)
+def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, quiet, env, exp_type, is_adversarial):
+    moss_r = meta_rolls_out(n_tasks, agent_dict["moss_agent"], env, HORIZON, quiet, is_adversarial)
+    EE_r = meta_rolls_out(n_tasks, agent_dict["EE_agent"], env, HORIZON, quiet, is_adversarial)
+    PMML_r = meta_rolls_out(n_tasks, agent_dict["PMML_agent"], env, HORIZON, quiet, is_adversarial)
+    opt_moss_r = meta_rolls_out(n_tasks, agent_dict["opt_moss_agent"], env, HORIZON, quiet, is_adversarial)
+    GML_r = meta_rolls_out(n_tasks, agent_dict["GML_agent"], env, HORIZON, quiet, is_adversarial)
     if exp_type == TASK_EXP:
         cache_dict["moss_regrets"][i] = moss_r
         cache_dict["EE_regrets"][i] = EE_r
         cache_dict["PMML_regrets"][i] = PMML_r
         cache_dict["opt_moss_regrets"][i] = opt_moss_r
-        cache_dict["GML_regrets"][i] = opt_moss_r
+        cache_dict["GML_regrets"][i] = GML_r
     elif exp_type == HORIZON_EXP:
         cache_dict["moss_regrets"][i, j] = moss_r[-1] / HORIZON
         cache_dict["EE_regrets"][i, j] = EE_r[-1] / HORIZON
         cache_dict["PMML_regrets"][i, j] = PMML_r[-1] / HORIZON
         cache_dict["opt_moss_regrets"][i, j] = opt_moss_r[-1] / HORIZON
-        cache_dict["GML_regrets"][i, j] = opt_moss_r[-1] / HORIZON
+        cache_dict["GML_regrets"][i, j] = GML_r[-1] / HORIZON
     else:
         cache_dict["moss_regrets"][i, j] = moss_r[-1]
         cache_dict["EE_regrets"][i, j] = EE_r[-1]
         cache_dict["PMML_regrets"][i, j] = PMML_r[-1]
         cache_dict["opt_moss_regrets"][i, j] = opt_moss_r[-1]
-        cache_dict["GML_regrets"][i, j] = opt_moss_r[-1]
+        cache_dict["GML_regrets"][i, j] = GML_r[-1]
     return cache_dict
 
 
 def task_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, N_EXPERT, quiet=True, **kwargs):
-    env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs)
+    if kwargs['is_adversarial'] is False:
+        setting = "Stochastic setting"
+        env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs)
+    else:
+        setting = "Adversarial setting"
+        kwargs['horizon'] = HORIZON
+        env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs)
     cache_dict = _init_cache(N_EXPS, N_TASKS)
     for i in trange(N_EXPS):
         agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, N_EXPERT, env, quiet, **kwargs)
-        cache_dict = _collect_data(agent_dict, cache_dict, i, None, N_TASKS, HORIZON, quiet, env, TASK_EXP)
+        cache_dict = _collect_data(agent_dict, cache_dict, i, None, N_TASKS, HORIZON, quiet, env, TASK_EXP, kwargs['is_adversarial'])
     X = np.arange(N_TASKS)
     if N_EXPERT is None:
         N_EXPERT = env.n_experts
     gap = kwargs["gap_constrain"]
-    title = f"Regret: {N_ARMS} arms, horizon {HORIZON}, {N_EXPERT} experts, gap = {gap:.3f} and subset size {OPT_SIZE}"
+    title = f"Regret: {setting}, {N_ARMS} arms, horizon {HORIZON}, {N_EXPERT} experts, gap = {gap:.3f} and subset size {OPT_SIZE}"
     xlabel, ylabel = "Number of tasks", "Average Regret per task"
     step = kwargs["task_cache_step"]
     indices = np.arange(0, X.shape[0], step).astype(int)
@@ -192,15 +215,21 @@ def horizon_exp(
             kwargs["gap_constrain"] = min(1, np.sqrt(N_ARMS * np.log(N_TASKS) / h))
             tmp = kwargs["gap_constrain"]
             print(f"gap = {tmp}")
-            env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs)
+            if kwargs['is_adversarial'] is False:
+                env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs)
+            else:
+                kwargs['horizon'] = h
+                env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs)
             agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, h, OPT_SIZE, N_EXPERT, env, quiet, **kwargs)
-            cache_dict = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, h, quiet, env, HORIZON_EXP)
+            cache_dict = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, h, quiet, env, HORIZON_EXP, kwargs['is_adversarial'])
     X = horizon_list
     if N_EXPERT is None:
         N_EXPERT = env.n_experts
-    title = (
-        f"Regret: {N_ARMS} arms, {N_TASKS} tasks, {N_EXPERT} experts, gap cond. satisfied and subset size {OPT_SIZE}"
-    )
+    if kwargs['is_adversarial'] is False:
+        setting = "Stochastic setting"
+    else:
+        setting = "Adversarial setting"
+    title = f"Regret: {setting}, {N_ARMS} arms, {N_TASKS} tasks, {N_EXPERT} experts, gap cond. satisfied and subset size {OPT_SIZE}"
     xlabel, ylabel = "Horizon", "Average Regret per Step"
     regret_dict = {
         "moss_regrets": cache_dict["moss_regrets"],
@@ -215,16 +244,24 @@ def horizon_exp(
 
 def arms_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, N_EXPERT, n_arms_list=np.arange(8, 69, 15), quiet=True, **kwargs):
     cache_dict = _init_cache(N_EXPS, n_arms_list.shape[0])
+    kwargs['horizon'] = HORIZON # for adversarial setting
     for i in trange(N_EXPS):
         for j, b in enumerate(n_arms_list):
             kwargs["gap_constrain"] = min(1, np.sqrt(b * np.log(N_TASKS) / HORIZON))
-            env = bandit.MetaBernoulli(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs)
+            if kwargs['is_adversarial'] is False:
+                env = bandit.MetaBernoulli(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs)
+            else:
+                env = bandit.AdvMetaBernoulli(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs)
             agent_dict = _init_agents(N_EXPS, N_TASKS, b, HORIZON, OPT_SIZE, N_EXPERT, env, quiet, **kwargs)
-            cache_dict = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, HORIZON, quiet, env, ARM_EXP)
+            cache_dict = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, HORIZON, quiet, env, ARM_EXP, kwargs['is_adversarial'])
     X = n_arms_list
     if N_EXPERT is None:
         N_EXPERT = "all"
-    title = f"Regret: Horizon {HORIZON}, {N_TASKS} tasks, {N_EXPERT} experts, gap cond. satisfied and subset size {OPT_SIZE}"
+    if kwargs['is_adversarial'] is False:
+        setting = "Stochastic setting"
+    else:
+        setting = "Adversarial setting"
+    title = f"Regret: {setting}, Horizon {HORIZON}, {N_TASKS} tasks, {N_EXPERT} experts, gap cond. satisfied and subset size {OPT_SIZE}"
     xlabel, ylabel = "Number of Arms", "Regret"
     regret_dict = {
         "moss_regrets": cache_dict["moss_regrets"],
@@ -241,16 +278,24 @@ def subset_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, N_EXPERT, opt_size_list=None, q
     if opt_size_list is None:
         opt_size_list = np.arange(1, N_ARMS + 1, 4)
     cache_dict = _init_cache(N_EXPS, opt_size_list.shape[0])
+    kwargs['horizon'] = HORIZON # for adversarial setting
     for i in trange(N_EXPS):
         for j, s in enumerate(opt_size_list):
-            env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs)
+            if kwargs['is_adversarial'] is False:
+                env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs)
+            else:
+                env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, n_experts=N_EXPERT, **kwargs)
             agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, s, N_EXPERT, env, quiet, **kwargs)
-            cache_dict = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, HORIZON, quiet, env, SUBSET_EXP)
+            cache_dict = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, HORIZON, quiet, env, SUBSET_EXP, kwargs['is_adversarial'])
     X = opt_size_list
     if N_EXPERT is None:
         N_EXPERT = "all"
     gap = kwargs["gap_constrain"]
-    title = f"Regret: {N_ARMS} arms, Horizon {HORIZON}, {N_TASKS} tasks, gap = {gap:.3f} and {N_EXPERT} experts"
+    if kwargs['is_adversarial'] is False:
+        setting = "Stochastic setting"
+    else:
+        setting = "Adversarial setting"
+    title = f"Regret: {setting}, {N_ARMS} arms, Horizon {HORIZON}, {N_TASKS} tasks, gap = {gap:.3f} and {N_EXPERT} experts"
     xlabel, ylabel = "subset size", "Regret"
     regret_dict = {
         "moss_regrets": cache_dict["moss_regrets"],
