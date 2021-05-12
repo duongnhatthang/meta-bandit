@@ -18,17 +18,16 @@ def task_exp(args, extra_args):
     N_ARMS = args.nArms
     HORIZON = args.horizon
     OPT_SIZE = args.optSize
-    N_EXPERT = extra_args["nExperts"]
     if not args.loadCache:
         (X, regret_dict, title, xlabel, ylabel) = utils.task_exp(
-            N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, N_EXPERT, **extra_args
+            N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, **extra_args
         )
     else:
         X = np.arange(N_TASKS)
         gap = extra_args["gap_constrain"]
         regret_dict = pickle.load(open(os.path.join(args.cacheDir, "tasks_cache.p"), "rb"))
         title = (
-            f"Regret: {N_ARMS} arms, horizon {HORIZON}, {N_EXPERT} experts, gap = {gap:.3f} and subset size {OPT_SIZE}"
+            f"Regret: {N_ARMS} arms, horizon {HORIZON}, all experts, gap = {gap:.3f} and subset size {OPT_SIZE}"
         )
         xlabel, ylabel = "Number of tasks", "Average Regret per task"
         indices = np.arange(0, X.shape[0], extra_args["task_cache_step"]).astype(int)
@@ -42,16 +41,15 @@ def horizon_exp(args, extra_args):
     N_TASKS = args.nTasks
     N_ARMS = args.nArms
     OPT_SIZE = args.optSize
-    N_EXPERT = extra_args["nExperts"]
     if not args.loadCache:
         horizon_list = np.arange(extra_args["exp_args"][0], extra_args["exp_args"][1], extra_args["exp_args"][2])
         (X_h, regret_dict_h, title, xlabel, ylabel) = utils.horizon_exp(
-            N_EXPS, N_TASKS, N_ARMS, OPT_SIZE, N_EXPERT, horizon_list=horizon_list, **extra_args
+            N_EXPS, N_TASKS, N_ARMS, OPT_SIZE, horizon_list=horizon_list, **extra_args
         )
     else:
         X_h = np.arange(50, 310, 50)
         regret_dict_h = pickle.load(open(os.path.join(args.cacheDir, "horizon_cache.p"), "rb"))
-        title = f"Regret: {N_ARMS} arms, {N_TASKS} tasks, {N_EXPERT} experts, gap cond. satisfied and subset size {OPT_SIZE}"
+        title = f"Regret: {N_ARMS} arms, {N_TASKS} tasks, all experts, gap cond. satisfied and subset size {OPT_SIZE}"
         xlabel, ylabel = "Horizon", "Average Regret per Step"
         utils.plot(X_h, regret_dict_h, title, xlabel, ylabel, extra_args["plot_var"])
     pickle.dump(regret_dict_h, open(os.path.join(args.cacheDir, "horizon.p"), "wb"))
@@ -62,10 +60,9 @@ def subset_exp(args, extra_args):
     N_TASKS = args.nTasks
     N_ARMS = args.nArms
     HORIZON = args.horizon
-    N_EXPERT = extra_args["nExperts"]
     if not args.loadCache:
         (X_e, regret_dict_e, title, xlabel, ylabel) = utils.subset_exp(
-            N_EXPS, N_TASKS, N_ARMS, HORIZON, N_EXPERT, opt_size_list=np.arange(1, N_ARMS + 1, 1), **extra_args
+            N_EXPS, N_TASKS, N_ARMS, HORIZON, opt_size_list=np.arange(1, N_ARMS + 1, 1), **extra_args
         )
     else:
         gap = extra_args["gap_constrain"]
@@ -82,11 +79,10 @@ def arms_exp(args, extra_args):
     N_TASKS = args.nTasks
     HORIZON = args.horizon
     OPT_SIZE = args.optSize
-    N_EXPERT = extra_args["nExperts"]
     if not args.loadCache:
         n_arms_list = np.arange(extra_args["exp_args"][0], extra_args["exp_args"][1], extra_args["exp_args"][2])
         (X_b, regret_dict_b, title, xlabel, ylabel) = utils.arms_exp(
-            N_EXPS, N_TASKS, HORIZON, OPT_SIZE, N_EXPERT, n_arms_list, **extra_args
+            N_EXPS, N_TASKS, HORIZON, OPT_SIZE, n_arms_list, **extra_args
         )
     else:
         title = (
@@ -139,18 +135,15 @@ if __name__ == "__main__":
             assert (
                 False
             ), "When using loadCache, please use the default setting for nTasks, nArms, nExps, optSize, and horizon."
-        nExperts = 10
     else:
         if args.exp == "horizon" or args.exp == "arms":
             exp_args = json.loads(args.expArgs)
-        nExperts = None
     GAP_THRESHOLD = np.sqrt(args.nArms * np.log(args.nTasks) / args.horizon)
     extra_args = {
         "exp_args": exp_args,
         "task_cache_step": 10,
         "gap_constrain": min(1,GAP_THRESHOLD*1.0005),  # 1.0005 is small gap, 1.2 for large
         "plot_var": True,
-        "nExperts": nExperts,
         "is_adversarial": args.isAdversarial,
         "timeout": args.timeOut, # maximum duration for each roll-outs. Unit = minute. -1 = unlimited
         "quiet": args.quiet,

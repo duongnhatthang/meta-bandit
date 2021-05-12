@@ -1,5 +1,6 @@
 import numpy as np
-from scipy.special import softmax
+from scipy.special import softmax, comb
+from itertools import combinations
 
 
 class MOSS:
@@ -101,17 +102,15 @@ class EE:
     - => Then only run EXT
     """
 
-    def __init__(self, n_arms, horizon, n_tasks, expert_subsets, C=1, min_index=-1000):
+    def __init__(self, n_arms, horizon, n_tasks, subset_size, C=1, min_index=-1000):
         self.min_index = min_index
         self.n_arms = n_arms
         self.horizon = horizon
-        self.expert_subsets = expert_subsets
-        self.n_experts = self.expert_subsets.shape[0]
         self.n_tasks = n_tasks
         self.PE_algo = PhaseElim(n_arms, horizon, C, min_index)
         self.reset()
         self.MOSS_algo = MOSS(self.n_arms, self.horizon)
-        self.subset_size = expert_subsets[0].shape[0]
+        self.subset_size = subset_size
         self.C1 = np.sqrt(horizon * self.subset_size)
         self.C2 = np.sqrt(horizon * n_arms)
         self.C3 = horizon
@@ -131,7 +130,7 @@ class EE:
 
     def _set_is_explore(self):
         p = self._get_delta_n()
-        p = min(p, 1)  # TODO: prob bug here
+        p = min(p, 1)
         self.is_explore = bool(np.random.choice(2, p=[1 - p, p]))
 
     def get_action(self, obs):  # get action for each rolls-out step
@@ -143,12 +142,8 @@ class EE:
     def eps_end_update(self, obs):  # update the tracking_stats after each rolls-out
         if self.is_explore and len(self.EXT_set) < self.subset_size:
             arms_found = self.PE_algo.A_l
-            if arms_found.shape[0] == 1:
-                if arms_found[0] not in self.EXT_set:
-                    self.EXT_set.append(arms_found[0])
-            else:
-                self.EXT_set += arms_found.tolist()
-                self.EXT_set = list(set(self.EXT_set))
+            self.EXT_set += arms_found.tolist()
+            self.EXT_set = list(set(self.EXT_set))
             self.MOSS_algo = ExpertMOSS(self.n_arms, self.horizon, self.EXT_set, self.min_index)
         self.cur_task += 1
         self._set_is_explore()
@@ -166,13 +161,12 @@ class PMML_EWA:
      - Only update statistic at EXR round
     """
 
-    def __init__(self, n_arms, horizon, n_tasks, expert_subsets, C=1, min_index=-1000):
+    def __init__(self, n_arms, horizon, n_tasks, subset_size, C=1, min_index=-1000):
         self.n_arms = n_arms
         self.horizon = horizon
         self.n_tasks = n_tasks
-        self.expert_subsets = expert_subsets
-        self.subset_size = expert_subsets[0].shape[0]
-        self.n_experts = self.expert_subsets.shape[0]
+        self.subset_size = subset_size
+        self.n_experts = int(comb(n_arms, subset_size))
         self.min_index = min_index
         self.C1 = np.sqrt(horizon * self.subset_size)
         self.C2 = np.sqrt(horizon * n_arms)
@@ -190,7 +184,7 @@ class PMML_EWA:
         assert (
             self.C1 <= self.C2 and self.C2 <= self.C3
         ), f"C1 ({self.C1}) < C2 ({self.C2}) < C3 ({self.C3}) not satisfied."
-        self.EXT_set = None # For Adversarial setting only
+        self.EXT_set = [] # For Adversarial setting only
 
     def reset(self):
         self.PE_algo.reset()
@@ -200,6 +194,13 @@ class PMML_EWA:
 
     def _get_delta_n(self):
         return (self.C3 * np.log(self.n_experts) / (self.C2 * self.n_tasks)) ** (1 / 2)
+
+    def _get_expert_at_index(self, idx):
+        expert_generator = combinations(np.arange(self.n_arms), self.subset_size)
+        for i, e in enumerate(expert_generator):
+            if i == idx:
+                return np.squeeze(e).tolist()
+        assert False, "Chosen index is out of the expert list."
 
     def _select_expert(self):
         # EWA algorithm, max softmax trick
@@ -214,8 +215,8 @@ class PMML_EWA:
             self.P_n /= np.sum(self.P_n)
         self.cur_subset_index = np.random.choice(self.n_experts + 1, p=self.P_n)
         if self.cur_subset_index < self.n_experts:  # EXT: exploit
-            self.EXT_set = self.expert_subsets[self.cur_subset_index]
-            self.cur_algo = ExpertMOSS(self.n_arms, self.horizon, self.EXT_set)
+            EXT_set = self._get_expert_at_index(self.cur_subset_index)
+            self.cur_algo = ExpertMOSS(self.n_arms, self.horizon, EXT_set)
         else:  # EXR: explore
             self.cur_algo = self.PE_algo
 
@@ -231,8 +232,11 @@ class PMML_EWA:
         tilda_c_n = np.zeros((self.n_experts + 1,))
         tilda_c_n[-1] = self.C2
         surviving_arms = self.PE_algo.A_l
+        self.EXT_set += surviving_arms.tolist()
+        self.EXT_set = list(set(self.EXT_set))
         experts_contains_surviving_arms = []
-        for i, e in enumerate(self.expert_subsets):
+        expert_generator = combinations(np.arange(self.n_arms), self.subset_size)
+        for i, e in enumerate(expert_generator):
             tmp = np.intersect1d(surviving_arms, e)
             if len(tmp) > 0:
                 experts_contains_surviving_arms.append(i)
@@ -261,8 +265,8 @@ class PMML(PMML_EWA):
     Remove all experts not contain the surviving arms returned by Phase Elimination
     """
 
-    def __init__(self, n_arms, horizon, n_tasks, expert_subsets, C=1, min_index=-1000):
-        super().__init__(n_arms, horizon, n_tasks, expert_subsets, C, min_index)
+    def __init__(self, n_arms, horizon, n_tasks, subset_size, C=1, min_index=-1000):
+        super().__init__(n_arms, horizon, n_tasks, subset_size, C, min_index)
         self.surviving_experts = np.arange(self.n_experts)
 
     def _update_tracking_stats(self, obs):
@@ -270,7 +274,7 @@ class PMML(PMML_EWA):
         surviving_experts = np.where(l_n == 0)[0]
         self.surviving_experts = np.intersect1d(self.surviving_experts, surviving_experts)
         if self.surviving_experts.shape[0] == 1:  # stop Exploration after finding the correct expert
-            self.EXT_set = self.expert_subsets[self.surviving_experts[0]]
+            self.EXT_set = self._get_expert_at_index(self.surviving_experts[0])
             self.cur_algo = ExpertMOSS(self.n_arms, self.horizon, self.EXT_set)
         else:
             temp = np.ones_like(self.tracking_stats) * self.min_index
@@ -280,7 +284,8 @@ class PMML(PMML_EWA):
             self.tracking_stats += 1 - l_n
 
     def eps_end_update(self, obs):  # update the tracking_stats after each rolls-out
-        self._update_tracking_stats(obs)
+        if self.cur_subset_index == self.n_experts:  # EXR: explore
+            self._update_tracking_stats(obs)
         if self.surviving_experts.shape[0] > 1:  # Only EWA to select expert if there are more than 1 surviving
             self._select_expert()
 
@@ -290,17 +295,14 @@ class GML:
     Greedy algorithm for bandit meta-learning
     """
 
-    def __init__(self, n_arms, horizon, n_tasks, expert_subsets, C=1, min_index=-1000):
+    def __init__(self, n_arms, horizon, n_tasks, C=1, min_index=-1000):
         self.n_arms = n_arms
         self.horizon = horizon
         self.n_tasks = n_tasks
-        self.expert_subsets = expert_subsets
-        self.subset_size = expert_subsets[0].shape[0]
-        self.n_experts = self.expert_subsets.shape[0]
         self.min_index = min_index
         self.B_TK = np.sqrt(horizon * self.n_arms * np.log(self.n_arms)) 
         self.tracking_stats = np.zeros((n_tasks,n_arms))
-        self.EXT_set = None
+        self.EXT_set = []
         self.is_explore = None
         self.cur_task = 0
         self.PE_algo = PhaseElim(n_arms, horizon, C, min_index)
