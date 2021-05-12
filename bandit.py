@@ -117,8 +117,6 @@ class MetaBernoulli(Bernoulli):
                 opt_indices = np.random.choice(self.opt_indices, size=(n_tasks,))
                 if len(list(set(opt_indices.tolist()))) == opt_size:
                     break
-                else:
-                    import pdb; pdb.set_trace()
             temp = np.random.uniform(high=opt_values - low, size=(n_arms, n_tasks))
             self.p_dist = temp.T
             self.p_dist[np.arange(n_tasks), opt_indices] = opt_values
