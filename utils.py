@@ -217,8 +217,7 @@ def task_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, **kwargs):
         env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
     else:
         setting = "Adversarial setting"
-        kwargs['horizon'] = HORIZON
-        env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
+        env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
     cache_dict = _init_cache(N_EXPS, N_TASKS)
     for i in trange(N_EXPS):
         agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, env, **kwargs)
@@ -257,8 +256,7 @@ def horizon_exp(
             if kwargs['is_adversarial'] is False:
                 env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
             else:
-                kwargs['horizon'] = h
-                env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
+                env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=h, **kwargs)
             agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, h, OPT_SIZE, env, **kwargs)
             cache_dict, timer_cache = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, h, env, HORIZON_EXP, timer_cache, **kwargs)
     X = horizon_list
@@ -274,7 +272,6 @@ def horizon_exp(
 
 def arms_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, n_arms_list=np.arange(8, 69, 15), **kwargs):
     cache_dict = _init_cache(N_EXPS, n_arms_list.shape[0])
-    kwargs['horizon'] = HORIZON # for adversarial setting
     for i in trange(N_EXPS):
         timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0,}
         for j, b in enumerate(n_arms_list):
@@ -282,7 +279,7 @@ def arms_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, n_arms_list=np.arange(8, 69, 15
             if kwargs['is_adversarial'] is False:
                 env = bandit.MetaBernoulli(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
             else:
-                env = bandit.AdvMetaBernoulli(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
+                env = bandit.AdvMetaBernoulli(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
             agent_dict = _init_agents(N_EXPS, N_TASKS, b, HORIZON, OPT_SIZE, env, **kwargs)
             cache_dict, timer_cache = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, HORIZON, env, ARM_EXP, timer_cache, **kwargs)
     X = n_arms_list
@@ -300,14 +297,13 @@ def subset_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, opt_size_list=None, **kwargs):
     if opt_size_list is None:
         opt_size_list = np.arange(1, N_ARMS + 1, 4)
     cache_dict = _init_cache(N_EXPS, opt_size_list.shape[0])
-    kwargs['horizon'] = HORIZON # for adversarial setting
     for i in trange(N_EXPS):
         timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0,}
         for j, s in enumerate(opt_size_list):
             if kwargs['is_adversarial'] is False:
                 env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, **kwargs)
             else:
-                env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, **kwargs)
+                env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
             agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, s, env, **kwargs)
             cache_dict, timer_cache = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, HORIZON, env, SUBSET_EXP, timer_cache, **kwargs)
     X = opt_size_list

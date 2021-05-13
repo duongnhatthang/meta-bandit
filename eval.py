@@ -112,7 +112,7 @@ if __name__ == "__main__":
     parser.add_argument("--nExps", help="number of repeated experiments", type=int, default=10)
     parser.add_argument("--optSize", help="size of the optimal subset", type=int, default=2)
     parser.add_argument("--horizon", help="horizon of each task", type=int, default=250)
-    parser.add_argument("--timeOut", help="maximum minutes per experiment", type=float, default=0.1)
+    parser.add_argument("--timeOut", help="maximum minutes (for all settings) per experiment (total time divided by (repeat_exps * num_tested_method))", type=float, default=2)
     parser.add_argument(
         "--expArgs", help="arguments for horizon or arms. Example: (a,b,c) => range(a,b,c)", type=str, default=None
     )
@@ -147,6 +147,7 @@ if __name__ == "__main__":
         "is_adversarial": args.isAdversarial,
         "timeout": args.timeOut, # maximum duration for each roll-outs. Unit = minute. -1 = unlimited
         "quiet": args.quiet,
+        "skip_list": ["PMML"]
     }
 
     if args.exp == "task":
