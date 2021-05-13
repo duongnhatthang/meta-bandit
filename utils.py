@@ -1,5 +1,4 @@
 import inspect
-
 import algos
 import bandit
 import matplotlib.pyplot as plt
@@ -7,7 +6,7 @@ import numpy as np
 from tqdm import trange
 from copy import deepcopy
 import time
-
+from multiprocessing import Process, Manager
 
 TASK_EXP = 0
 HORIZON_EXP = 1
@@ -159,34 +158,18 @@ def _init_cache(N_EXPS, x_axis):
     }
 
 
-def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, env, exp_type, timer_cache, **kwargs):
-    def _rolls_out_and_time(name, timer_cache):
-        tic = time.time()
-        r = None
-        if timer_cache is None or timer_cache['timeout']*60 > timer_cache[name]:
-            tmp_dict = {'quiet':kwargs['quiet'], 'is_adversarial':kwargs['is_adversarial']}
-            # using tmp_dict instead of kwargs to specify 'timeout' = None
-            r = meta_rolls_out(n_tasks, agent_dict[name+"_agent"], env, HORIZON, timeout=None, **tmp_dict)
-        else:
-            print('Timeout! Ending this task ...')
-        toc = time.time()
-        timer_cache[name] += toc - tic
-        return timer_cache, r
+def _multi_process_wrapper(name, func, return_dict, **kwargs):
+    output = func(**kwargs)
+    return_dict[name] = output
 
-    if exp_type == TASK_EXP:
-        moss_r = meta_rolls_out(n_tasks, agent_dict["moss_agent"], env, HORIZON, **kwargs)
-        EE_r = meta_rolls_out(n_tasks, agent_dict["EE_agent"], env, HORIZON, **kwargs)
-        if "PMML" not in kwargs['skip_list']:
-            PMML_r = meta_rolls_out(n_tasks, agent_dict["PMML_agent"], env, HORIZON, **kwargs)
-        opt_moss_r = meta_rolls_out(n_tasks, agent_dict["opt_moss_agent"], env, HORIZON, **kwargs)
-        GML_r = meta_rolls_out(n_tasks, agent_dict["GML_agent"], env, HORIZON, **kwargs)
-    else:
-        timer_cache, moss_r = _rolls_out_and_time("moss", timer_cache)
-        timer_cache, EE_r = _rolls_out_and_time("EE", timer_cache)
-        if "PMML" not in kwargs['skip_list']:
-            timer_cache, PMML_r = _rolls_out_and_time("PMML", timer_cache)
-        timer_cache, opt_moss_r = _rolls_out_and_time("opt_moss", timer_cache)
-        timer_cache, GML_r = _rolls_out_and_time("GML", timer_cache)
+
+def _store_collected_data(raw_data_dict, cache_dict, exp_type, i, j, **kwargs):
+    moss_r = raw_data_dict["moss_r"]
+    EE_r = raw_data_dict["EE_r"]
+    opt_moss_r = raw_data_dict["opt_moss_r"]
+    GML_r = raw_data_dict["GML_r"]
+    if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
+        PMML_r = raw_data_dict["PMML_r"]
     if exp_type == TASK_EXP:
         if moss_r is not None: cache_dict["moss_regrets"][i,:len(moss_r)] = moss_r
         if EE_r is not None: cache_dict["EE_regrets"][i,:len(EE_r)] = EE_r
@@ -208,7 +191,84 @@ def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, env, exp_type,
             cache_dict["PMML_regrets"][i, j] = np.mean(PMML_r)
         if opt_moss_r is not None: cache_dict["opt_moss_regrets"][i, j] = np.mean(opt_moss_r)
         if GML_r is not None: cache_dict["GML_regrets"][i, j] = np.mean(GML_r)
-    return cache_dict, timer_cache
+    return cache_dict
+
+
+def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, env, exp_type, timer_cache, **kwargs):
+    def _rolls_out_and_time(agent, spent_time):
+        tic = time.time()
+        r = None
+        if timer_cache is None or kwargs['timeout']*60 > spent_time:
+            tmp_dict = {'quiet':kwargs['quiet'], 'is_adversarial':kwargs['is_adversarial']}
+            # using tmp_dict instead of kwargs to specify 'timeout' = None
+            r = meta_rolls_out(n_tasks, deepcopy(agent), deepcopy(env), HORIZON, timeout=None, **tmp_dict)
+        else:
+            print('Timeout! Ending this task ...')
+        toc = time.time()
+        return (r, toc - tic)
+
+    return_dict = Manager().dict()
+    if exp_type == TASK_EXP:
+        p_moss = multiprocessing.Process(target=_multi_process_wrapper, args=("moss", meta_rolls_out, return_dict, n_tasks, agent_dict["moss_agent"], deepcopy(env), HORIZON, **kwargs))
+        p_opt_moss = multiprocessing.Process(target=_multi_process_wrapper, args=("opt_moss", meta_rolls_out, return_dict, n_tasks, agent_dict["opt_moss_agent"], deepcopy(env), HORIZON, **kwargs))
+        p_EE = multiprocessing.Process(target=_multi_process_wrapper, args=("EE", meta_rolls_out, return_dict, n_tasks, deepcopy(agent_dict["EE_agent"]), deepcopy(env), HORIZON, **kwargs))
+        p_GML = multiprocessing.Process(target=_multi_process_wrapper, args=("GML", meta_rolls_out, return_dict, n_tasks, deepcopy(agent_dict["GML_agent"]), deepcopy(env), HORIZON, **kwargs))
+        p_moss.start()
+        p_opt_moss.start()
+        p_EE.start()
+        p_GML.start()
+        if "PMML" not in kwargs['skip_list']:
+            p_PMML = multiprocessing.Process(target=_multi_process_wrapper, args=("PMML", meta_rolls_out, return_dict, n_tasks, deepcopy(agent_dict["PMML_agent"]), deepcopy(env), HORIZON, **kwargs))
+            p_PMML.start()
+            p_PMML.join()
+            PMML_r = return_dict["PMML"]
+        p_moss.join()
+        p_opt_moss.join()
+        p_EE.join()
+        p_GML.join()
+        moss_r = return_dict["moss"]
+        opt_moss_r = return_dict["opt_moss"]
+        EE_r = return_dict["EE"]
+        GML_r = return_dict["GML"]
+    else:
+        # TODO: might catch error for calling parent's variable
+        p_moss = multiprocessing.Process(target=_multi_process_wrapper, args=("moss", _rolls_out_and_time, return_dict, agent_dict["moss_agent"], timer_cache["moss"])
+        p_opt_moss = multiprocessing.Process(target=_multi_process_wrapper, args=("opt_moss", _rolls_out_and_time, return_dict, agent_dict["opt_moss_agent"], timer_cache["opt_moss"])
+        p_EE = multiprocessing.Process(target=_multi_process_wrapper, args=("EE", _rolls_out_and_time, return_dict, agent_dict["EE_agent"], timer_cache["EE"])
+        p_GML = multiprocessing.Process(target=_multi_process_wrapper, args=("GML", _rolls_out_and_time, return_dict, agent_dict["GML_agent"], timer_cache["GML"])
+        p_moss.start()
+        p_opt_moss.start()
+        p_EE.start()
+        p_GML.start()
+        if "PMML" not in kwargs['skip_list']:
+            p_PMML = multiprocessing.Process(target=_multi_process_wrapper, args=("GML", _rolls_out_and_time, return_dict, agent_dict["PMML_agent"], timer_cache["PMML"])
+            p_PMML.start()
+            p_PMML.join()
+            PMML_r = return_dict["PMML"][0]
+            timer_cache["PMML"] += return_dict["PMML"][1]
+        p_moss.join()
+        p_opt_moss.join()
+        p_EE.join()
+        p_GML.join()
+                                             
+        moss_r = return_dict["moss"][0]
+        opt_moss_r = return_dict["opt_moss"][0]
+        EE_r = return_dict["EE"][0]
+        GML_r = return_dict["GML"][0]
+        timer_cache["moss"] += return_dict["moss"][1]
+        timer_cache["opt_moss"] += return_dict["opt_moss"][1]
+        timer_cache["EE"] += return_dict["EE"][1]
+        timer_cache["GML"] += return_dict["GML"][1]
+
+    raw_data_dict = {
+        "moss_r":moss_r,
+        "EE_r":EE_r,
+        "opt_moss_r":opt_moss_r,
+        "GML_r":GML_r,
+    }
+    if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
+        raw_data_dict["PMML_r"] = PMML_r
+    return raw_data_dict, timer_cache
 
 
 def task_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, **kwargs):
@@ -219,9 +279,15 @@ def task_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, **kwargs):
         setting = "Adversarial setting"
         env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
     cache_dict = _init_cache(N_EXPS, N_TASKS)
+
+    return_dict = Manager().dict()
+    processes = []
     for i in trange(N_EXPS):
         agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, env, **kwargs)
-        cache_dict, timer_cache = _collect_data(agent_dict, cache_dict, i, None, N_TASKS, HORIZON, env, TASK_EXP, {'timeout':kwargs['timeout']}, **kwargs)
+#         cache_dict, timer_cache = _collect_data(agent_dict, cache_dict, i, None, N_TASKS, HORIZON, env, TASK_EXP, {'timeout':kwargs['timeout']}, **kwargs)
+        p = multiprocessing.Process(target=_multi_process_wrapper, args=(i, _collect_data, return_dict, agent_dict, cache_dict, i, None, N_TASKS, HORIZON, env, TASK_EXP, {'timeout':kwargs['timeout']}, **kwargs)
+    for i in trange(N_EXPS):
+        cache_dict = _store_collected_data(return_dict[i][0], cache_dict, TASK_EXP, i, None, **kwargs)
     X = np.arange(N_TASKS)
     gap = kwargs["gap_constrain"]
     title = f"Regret: {setting}, {N_ARMS} arms, horizon {HORIZON}, {int(env.n_experts)} experts, gap = {gap:.3f} and subset size {OPT_SIZE}"
@@ -249,6 +315,7 @@ def horizon_exp(
     cache_dict = _init_cache(N_EXPS, horizon_list.shape[0])
     for i in trange(N_EXPS):
         timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0,}
+        # TODO: put the for loop below into a function to run multi-processes
         for j, h in enumerate(horizon_list):
             kwargs["gap_constrain"] = min(1, np.sqrt(N_ARMS * np.log(N_TASKS) / h))
             tmp = kwargs["gap_constrain"]
