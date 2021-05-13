@@ -1,6 +1,6 @@
 import copy
 from itertools import combinations
-
+from scipy.special import comb
 import numpy as np
 from gym import Env, spaces
 
@@ -93,17 +93,15 @@ class MetaBernoulli(Bernoulli):
     All task's optimal arms is in a sub-group
     """
 
-    def __init__(self, n_arms, opt_size, n_tasks, n_experts, **kwargs):
-        if n_experts is not None:
-            assert n_experts > 0, f"n_experts ({n_experts}) must be larger than 0."
+    def __init__(self, n_arms, opt_size, n_tasks, **kwargs):
         self.r_dist = np.full((n_tasks, n_arms), 1)
         self.n_tasks = n_tasks
         self.n_arms = n_arms
         self.action_space = spaces.Discrete(self.n_arms)
         self.observation_space = spaces.Discrete(2 * n_arms)
-        self.n_experts = n_experts
         self.opt_size = opt_size
         self.gap_constrain = kwargs["gap_constrain"]
+        self.n_experts = comb(self.n_arms, self.opt_size)
 
         self.opt_indices = np.arange(n_arms)
         np.random.shuffle(self.opt_indices)
@@ -125,31 +123,13 @@ class MetaBernoulli(Bernoulli):
             if np.max(opt_values) > 0:
                 break
         self.reset_task(0)
-
-        if self.n_experts is None:  # All combinations
-            tmp = list(combinations(np.arange(self.n_arms), self.opt_size))
-            self.n_experts = len(tmp)
-            self.expert_subsets = np.asarray(tmp)
-        else:
-            self.expert_subsets = np.zeros((self.n_experts, self.opt_size))
-            for i in range(self.n_experts):
-                while True:  # Sample a new subset, if not appeared before, added to self.expert_subsets
-                    tmp = np.random.choice(self.n_arms, self.opt_size, replace=False)
-                    if any((self.expert_subsets[:i] == tmp).all(1)) is False:
-                        self.expert_subsets[i] = tmp
-                        break
-            self.expert_subsets = self.expert_subsets.astype(int)
-            # Check if The Optimal subset (self.opt_indices) is inside the self.expert_subsets
-            if any((self.expert_subsets[:] == self.opt_indices).all(1)) is False:
-                i = np.random.randint(n_experts)
-                self.expert_subsets[i] = self.opt_indices
-        print(f"Optimal expert index = {np.where((self.expert_subsets[:]==self.opt_indices).all(1))[0][0]}: {self.opt_indices}")
+        print(f"opt_indices = {self.opt_indices}")
 
 
 class AdvMetaBernoulli(MetaBernoulli):
 
-    def __init__(self, n_arms, opt_size, n_tasks, n_experts, horizon, **kwargs):
-        super().__init__(n_arms, opt_size, n_tasks, n_experts, **kwargs)
+    def __init__(self, n_arms, opt_size, n_tasks, horizon, **kwargs):
+        super().__init__(n_arms, opt_size, n_tasks, **kwargs)
         self.horizon = horizon
         self.B_TK = np.sqrt(horizon * self.n_arms * np.log(self.n_arms))
 
@@ -163,12 +143,12 @@ class AdvMetaBernoulli(MetaBernoulli):
             B_Ts = np.sqrt(self.horizon * len(correct_EXT_set))
             G = np.sqrt(2*(self.B_TK-B_Ts)*(self.horizon-B_Ts)*(self.n_tasks-self.cur_task-2))
             q = (self.B_TK-B_Ts) / (self.horizon-B_Ts+G) # probability that next task optimal arm is NOT in correct_EXT_set
-            is_out_of_set = bool(np.random.choice(2, p=[1 - q, q]))
+            self.is_out_of_set = bool(np.random.choice(2, p=[1 - q, q]))
             inv_correct_EXT_set = np.setdiff1d(self.opt_indices, correct_EXT_set)
             if len(inv_correct_EXT_set)==0:
                 opt_arm = np.random.choice(correct_EXT_set)
             else:
-                if is_out_of_set is True or len(correct_EXT_set)==0:
+                if self.is_out_of_set is True or len(correct_EXT_set)==0:
                     opt_arm = np.random.choice(inv_correct_EXT_set)
                 else:
                     opt_arm = np.random.choice(correct_EXT_set)
