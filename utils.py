@@ -163,20 +163,21 @@ def _multi_process_wrapper(name, func, return_dict, **kwargs):
     return_dict[name] = output
 
 
-def _store_collected_data(raw_data_dict, cache_dict, exp_type, i, j, **kwargs):
+def _store_collected_data(raw_data_dict, cache_dict, exp_type, i, j, HORIZON, **kwargs):
     moss_r = raw_data_dict["moss_r"]
     EE_r = raw_data_dict["EE_r"]
     opt_moss_r = raw_data_dict["opt_moss_r"]
     GML_r = raw_data_dict["GML_r"]
-    if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
+    if "PMML" not in kwargs['skip_list']:
         PMML_r = raw_data_dict["PMML_r"]
     if exp_type == TASK_EXP:
-        if moss_r is not None: cache_dict["moss_regrets"][i,:len(moss_r)] = moss_r
-        if EE_r is not None: cache_dict["EE_regrets"][i,:len(EE_r)] = EE_r
-        if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
-            cache_dict["PMML_regrets"][i,:len(PMML_r)] = PMML_r
-        if opt_moss_r is not None: cache_dict["opt_moss_regrets"][i,:len(opt_moss_r)] = opt_moss_r
-        if GML_r is not None: cache_dict["GML_regrets"][i,:len(GML_r)] = GML_r
+        for j in range(len(moss_r)):
+            if moss_r is not None: cache_dict["moss_regrets"][i,j] = np.mean(moss_r[:j+1])
+            if EE_r is not None: cache_dict["EE_regrets"][i,j] = np.mean(EE_r[:j+1])
+            if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
+                cache_dict["PMML_regrets"][i,j] = np.mean(PMML_r[:j+1])
+            if opt_moss_r is not None: cache_dict["opt_moss_regrets"][i,j] = np.mean(opt_moss_r[:j+1])
+            if GML_r is not None: cache_dict["GML_regrets"][i,j] = np.mean(GML_r[:j+1])
     elif exp_type == HORIZON_EXP:
         if moss_r is not None: cache_dict["moss_regrets"][i, j] = np.mean(moss_r) / HORIZON
         if EE_r is not None: cache_dict["EE_regrets"][i, j] = np.mean(EE_r) / HORIZON
@@ -207,6 +208,7 @@ def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, env, exp_type,
         toc = time.time()
         return (r, toc - tic)
 
+    return_dict = Manager().dict()
     def _create_task_exp_process(name):
         tmp_kwargs = deepcopy(kwargs)
         tmp_kwargs["n_tasks"] = n_tasks
@@ -216,12 +218,12 @@ def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, env, exp_type,
         return Process(target=_multi_process_wrapper, args=(name, meta_rolls_out, return_dict), kwargs=tmp_kwargs)
 
     def _create_other_exp_process(name):
-        tmp_kwargs = deepcopy(kwargs)
-        tmp_kwargs["agent"] = agent_dict[name+"_agent"]
-        tmp_kwargs["spent_time"] = timer_cache[name]
-        return Process(target=_rolls_out_and_time, args=(name, meta_rolls_out, return_dict), kwargs=tmp_kwargs)
+        tmp_kwargs = {
+            "agent":agent_dict[name+"_agent"],
+            "spent_time":timer_cache[name]
+        }
+        return Process(target=_multi_process_wrapper, args=(name, _rolls_out_and_time, return_dict), kwargs=tmp_kwargs)
 
-    return_dict = Manager().dict()
     if exp_type == TASK_EXP:
         p_moss = _create_task_exp_process("moss")
         p_opt_moss = _create_task_exp_process("opt_moss")
@@ -294,7 +296,7 @@ def task_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, **kwargs):
         env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
     cache_dict = _init_cache(N_EXPS, N_TASKS)
 
-    def _create_task_exp_process(i):
+    def _create_process(i):
         tmp_kwargs = deepcopy(kwargs)
         tmp_kwargs["cache_dict"] = cache_dict
         tmp_kwargs["agent_dict"] = agent_dict
@@ -309,16 +311,15 @@ def task_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, **kwargs):
 
     return_dict = Manager().dict()
     processes = []
-    for i in range(N_EXPS):
+    for i in trange(N_EXPS):
         agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, env, **kwargs)
-#         cache_dict, timer_cache = _collect_data(agent_dict, cache_dict, i, None, N_TASKS, HORIZON, env, TASK_EXP, {'timeout':kwargs['timeout']}, **kwargs)
-        p = _create_task_exp_process(i)
+        p = _create_process(i)
         p.start()
         processes.append(p)
 
-    for i in trange(N_EXPS):
+    for i in range(N_EXPS):
         processes[i].join()
-        cache_dict = _store_collected_data(return_dict[i][0], cache_dict, TASK_EXP, i, None, **kwargs)
+        cache_dict = _store_collected_data(return_dict[i][0], cache_dict, TASK_EXP, i, None, HORIZON, **kwargs)
 
     X = np.arange(N_TASKS)
     gap = kwargs["gap_constrain"]
@@ -345,19 +346,41 @@ def horizon_exp(
     **kwargs,
 ):
     cache_dict = _init_cache(N_EXPS, horizon_list.shape[0])
+    def _create_process(i):
+        tmp_dict = {"rand_seed":np.random.randint(1000)}
+        def _sub_routine(rand_seed):
+            np.random.seed(rand_seed)
+            timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0,}
+            tmp_dict = deepcopy(cache_dict)
+            for j, h in enumerate(horizon_list):
+                kwargs["gap_constrain"] = min(1, np.sqrt(N_ARMS * np.log(N_TASKS) / h))
+                tmp = kwargs["gap_constrain"]
+                if kwargs['is_adversarial'] is False:
+                    env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
+                else:
+                    env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=h, **kwargs)
+                agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, h, OPT_SIZE, env, **kwargs)
+                raw_output, timer_cache = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, h, env, HORIZON_EXP, timer_cache, **kwargs)
+                tmp_dict = _store_collected_data(raw_output, tmp_dict, HORIZON_EXP, i, j, h, **kwargs)
+            return tmp_dict
+        return Process(target=_multi_process_wrapper, args=(i, _sub_routine, return_dict), kwargs=tmp_dict)
+
+    return_dict = Manager().dict()
+    processes = []
     for i in trange(N_EXPS):
-        timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0,}
-        # TODO: put the for loop below into a function to run multi-processes
-        for j, h in enumerate(horizon_list):
-            kwargs["gap_constrain"] = min(1, np.sqrt(N_ARMS * np.log(N_TASKS) / h))
-            tmp = kwargs["gap_constrain"]
-            print(f"gap = {tmp}")
-            if kwargs['is_adversarial'] is False:
-                env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
-            else:
-                env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=h, **kwargs)
-            agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, h, OPT_SIZE, env, **kwargs)
-            cache_dict, timer_cache = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, h, env, HORIZON_EXP, timer_cache, **kwargs)
+        p = _create_process(i)
+        p.start()
+        processes.append(p)
+
+    for i in range(N_EXPS):
+        processes[i].join()
+        cache_dict["moss_regrets"][i] = return_dict[i]["moss_regrets"][i]
+        cache_dict["EE_regrets"][i] = return_dict[i]["EE_regrets"][i]
+        cache_dict["opt_moss_regrets"][i] = return_dict[i]["opt_moss_regrets"][i]
+        cache_dict["GML_regrets"][i] = return_dict[i]["GML_regrets"][i]
+        if "PMML" not in kwargs['skip_list']:
+            cache_dict["PMML_regrets"][i] = return_dict[i]["PMML_regrets"][i]
+
     X = horizon_list
     if kwargs['is_adversarial'] is False:
         setting = "Stochastic setting"
@@ -371,16 +394,40 @@ def horizon_exp(
 
 def arms_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, n_arms_list=np.arange(8, 69, 15), **kwargs):
     cache_dict = _init_cache(N_EXPS, n_arms_list.shape[0])
+    def _create_process(i):
+        tmp_dict = {"rand_seed":np.random.randint(1000)}
+        def _sub_routine(rand_seed):
+            np.random.seed(rand_seed)
+            timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0,}
+            tmp_dict = deepcopy(cache_dict)
+            for j, b in enumerate(n_arms_list):
+                kwargs["gap_constrain"] = min(1, np.sqrt(b * np.log(N_TASKS) / HORIZON))
+                if kwargs['is_adversarial'] is False:
+                    env = bandit.MetaBernoulli(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
+                else:
+                    env = bandit.AdvMetaBernoulli(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
+                agent_dict = _init_agents(N_EXPS, N_TASKS, b, HORIZON, OPT_SIZE, env, **kwargs)
+                raw_output, timer_cache = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, HORIZON, env, ARM_EXP, timer_cache, **kwargs)
+                tmp_dict = _store_collected_data(raw_output, tmp_dict, ARM_EXP, i, j, HORIZON, **kwargs)
+            return tmp_dict
+        return Process(target=_multi_process_wrapper, args=(i, _sub_routine, return_dict), kwargs=tmp_dict)
+
+    return_dict = Manager().dict()
+    processes = []
     for i in trange(N_EXPS):
-        timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0,}
-        for j, b in enumerate(n_arms_list):
-            kwargs["gap_constrain"] = min(1, np.sqrt(b * np.log(N_TASKS) / HORIZON))
-            if kwargs['is_adversarial'] is False:
-                env = bandit.MetaBernoulli(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
-            else:
-                env = bandit.AdvMetaBernoulli(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
-            agent_dict = _init_agents(N_EXPS, N_TASKS, b, HORIZON, OPT_SIZE, env, **kwargs)
-            cache_dict, timer_cache = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, HORIZON, env, ARM_EXP, timer_cache, **kwargs)
+        p = _create_process(i)
+        p.start()
+        processes.append(p)
+
+    for i in range(N_EXPS):
+        processes[i].join()
+        cache_dict["moss_regrets"][i] = return_dict[i]["moss_regrets"][i]
+        cache_dict["EE_regrets"][i] = return_dict[i]["EE_regrets"][i]
+        cache_dict["opt_moss_regrets"][i] = return_dict[i]["opt_moss_regrets"][i]
+        cache_dict["GML_regrets"][i] = return_dict[i]["GML_regrets"][i]
+        if "PMML" not in kwargs['skip_list']:
+            cache_dict["PMML_regrets"][i] = return_dict[i]["PMML_regrets"][i]
+
     X = n_arms_list
     if kwargs['is_adversarial'] is False:
         setting = "Stochastic setting"
@@ -396,15 +443,39 @@ def subset_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, opt_size_list=None, **kwargs):
     if opt_size_list is None:
         opt_size_list = np.arange(1, N_ARMS + 1, 4)
     cache_dict = _init_cache(N_EXPS, opt_size_list.shape[0])
+    def _create_process(i):
+        tmp_dict = {"rand_seed":np.random.randint(1000)}
+        def _sub_routine(rand_seed):
+            np.random.seed(rand_seed)
+            timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0,}
+            tmp_dict = deepcopy(cache_dict)
+            for j, s in enumerate(opt_size_list):
+                if kwargs['is_adversarial'] is False:
+                    env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, **kwargs)
+                else:
+                    env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
+                agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, s, env, **kwargs)
+                raw_output, timer_cache = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, HORIZON, env, SUBSET_EXP, timer_cache, **kwargs)
+                tmp_dict = _store_collected_data(raw_output, tmp_dict, SUBSET_EXP, i, j, HORIZON, **kwargs)
+            return tmp_dict
+        return Process(target=_multi_process_wrapper, args=(i, _sub_routine, return_dict), kwargs=tmp_dict)
+
+    return_dict = Manager().dict()
+    processes = []
     for i in trange(N_EXPS):
-        timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0,}
-        for j, s in enumerate(opt_size_list):
-            if kwargs['is_adversarial'] is False:
-                env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, **kwargs)
-            else:
-                env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
-            agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, s, env, **kwargs)
-            cache_dict, timer_cache = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, HORIZON, env, SUBSET_EXP, timer_cache, **kwargs)
+        p = _create_process(i)
+        p.start()
+        processes.append(p)
+
+    for i in range(N_EXPS):
+        processes[i].join()
+        cache_dict["moss_regrets"][i] = return_dict[i]["moss_regrets"][i]
+        cache_dict["EE_regrets"][i] = return_dict[i]["EE_regrets"][i]
+        cache_dict["opt_moss_regrets"][i] = return_dict[i]["opt_moss_regrets"][i]
+        cache_dict["GML_regrets"][i] = return_dict[i]["GML_regrets"][i]
+        if "PMML" not in kwargs['skip_list']:
+            cache_dict["PMML_regrets"][i] = return_dict[i]["PMML_regrets"][i]
+
     X = opt_size_list
     gap = kwargs["gap_constrain"]
     if kwargs['is_adversarial'] is False:
