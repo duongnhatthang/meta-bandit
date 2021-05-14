@@ -207,18 +207,32 @@ def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, env, exp_type,
         toc = time.time()
         return (r, toc - tic)
 
+    def _create_task_exp_process(name):
+        tmp_kwargs = deepcopy(kwargs)
+        tmp_kwargs["n_tasks"] = n_tasks
+        tmp_kwargs["agent"] = deepcopy(agent_dict[name+"_agent"])
+        tmp_kwargs["env"] = deepcopy(env)
+        tmp_kwargs["horizon"] = HORIZON
+        return Process(target=_multi_process_wrapper, args=(name, meta_rolls_out, return_dict), kwargs=tmp_kwargs)
+
+    def _create_other_exp_process(name):
+        tmp_kwargs = deepcopy(kwargs)
+        tmp_kwargs["agent"] = agent_dict[name+"_agent"]
+        tmp_kwargs["spent_time"] = timer_cache[name]
+        return Process(target=_rolls_out_and_time, args=(name, meta_rolls_out, return_dict), kwargs=tmp_kwargs)
+
     return_dict = Manager().dict()
     if exp_type == TASK_EXP:
-        p_moss = multiprocessing.Process(target=_multi_process_wrapper, args=("moss", meta_rolls_out, return_dict, n_tasks, agent_dict["moss_agent"], deepcopy(env), HORIZON, **kwargs))
-        p_opt_moss = multiprocessing.Process(target=_multi_process_wrapper, args=("opt_moss", meta_rolls_out, return_dict, n_tasks, agent_dict["opt_moss_agent"], deepcopy(env), HORIZON, **kwargs))
-        p_EE = multiprocessing.Process(target=_multi_process_wrapper, args=("EE", meta_rolls_out, return_dict, n_tasks, deepcopy(agent_dict["EE_agent"]), deepcopy(env), HORIZON, **kwargs))
-        p_GML = multiprocessing.Process(target=_multi_process_wrapper, args=("GML", meta_rolls_out, return_dict, n_tasks, deepcopy(agent_dict["GML_agent"]), deepcopy(env), HORIZON, **kwargs))
+        p_moss = _create_task_exp_process("moss")
+        p_opt_moss = _create_task_exp_process("opt_moss")
+        p_EE = _create_task_exp_process("EE")
+        p_GML = _create_task_exp_process("GML")
         p_moss.start()
         p_opt_moss.start()
         p_EE.start()
         p_GML.start()
         if "PMML" not in kwargs['skip_list']:
-            p_PMML = multiprocessing.Process(target=_multi_process_wrapper, args=("PMML", meta_rolls_out, return_dict, n_tasks, deepcopy(agent_dict["PMML_agent"]), deepcopy(env), HORIZON, **kwargs))
+            p_PMML = _create_task_exp_process("PMML")
             p_PMML.start()
             p_PMML.join()
             PMML_r = return_dict["PMML"]
@@ -232,16 +246,16 @@ def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, env, exp_type,
         GML_r = return_dict["GML"]
     else:
         # TODO: might catch error for calling parent's variable
-        p_moss = multiprocessing.Process(target=_multi_process_wrapper, args=("moss", _rolls_out_and_time, return_dict, agent_dict["moss_agent"], timer_cache["moss"])
-        p_opt_moss = multiprocessing.Process(target=_multi_process_wrapper, args=("opt_moss", _rolls_out_and_time, return_dict, agent_dict["opt_moss_agent"], timer_cache["opt_moss"])
-        p_EE = multiprocessing.Process(target=_multi_process_wrapper, args=("EE", _rolls_out_and_time, return_dict, agent_dict["EE_agent"], timer_cache["EE"])
-        p_GML = multiprocessing.Process(target=_multi_process_wrapper, args=("GML", _rolls_out_and_time, return_dict, agent_dict["GML_agent"], timer_cache["GML"])
+        p_moss = _create_other_exp_process("moss")
+        p_opt_moss = _create_other_exp_process("opt_moss")
+        p_EE = _create_other_exp_process("EE")
+        p_GML = _create_other_exp_process("GML")
         p_moss.start()
         p_opt_moss.start()
         p_EE.start()
         p_GML.start()
         if "PMML" not in kwargs['skip_list']:
-            p_PMML = multiprocessing.Process(target=_multi_process_wrapper, args=("GML", _rolls_out_and_time, return_dict, agent_dict["PMML_agent"], timer_cache["PMML"])
+            p_PMML = _create_other_exp_process("PMML")
             p_PMML.start()
             p_PMML.join()
             PMML_r = return_dict["PMML"][0]
@@ -280,14 +294,32 @@ def task_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, **kwargs):
         env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
     cache_dict = _init_cache(N_EXPS, N_TASKS)
 
+    def _create_task_exp_process(i):
+        tmp_kwargs = deepcopy(kwargs)
+        tmp_kwargs["cache_dict"] = cache_dict
+        tmp_kwargs["agent_dict"] = agent_dict
+        tmp_kwargs["i"] = i
+        tmp_kwargs["j"] = None
+        tmp_kwargs["n_tasks"] = N_TASKS
+        tmp_kwargs["env"] = env
+        tmp_kwargs["HORIZON"] = HORIZON
+        tmp_kwargs["exp_type"] = TASK_EXP
+        tmp_kwargs["timer_cache"] = {'timeout':kwargs['timeout']}
+        return Process(target=_multi_process_wrapper, args=(i, _collect_data, return_dict), kwargs=tmp_kwargs)
+
     return_dict = Manager().dict()
     processes = []
-    for i in trange(N_EXPS):
+    for i in range(N_EXPS):
         agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, env, **kwargs)
 #         cache_dict, timer_cache = _collect_data(agent_dict, cache_dict, i, None, N_TASKS, HORIZON, env, TASK_EXP, {'timeout':kwargs['timeout']}, **kwargs)
-        p = multiprocessing.Process(target=_multi_process_wrapper, args=(i, _collect_data, return_dict, agent_dict, cache_dict, i, None, N_TASKS, HORIZON, env, TASK_EXP, {'timeout':kwargs['timeout']}, **kwargs)
+        p = _create_task_exp_process(i)
+        p.start()
+        processes.append(p)
+
     for i in trange(N_EXPS):
+        processes[i].join()
         cache_dict = _store_collected_data(return_dict[i][0], cache_dict, TASK_EXP, i, None, **kwargs)
+
     X = np.arange(N_TASKS)
     gap = kwargs["gap_constrain"]
     title = f"Regret: {setting}, {N_ARMS} arms, horizon {HORIZON}, {int(env.n_experts)} experts, gap = {gap:.3f} and subset size {OPT_SIZE}"
