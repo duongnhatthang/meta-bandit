@@ -8,7 +8,7 @@ from copy import deepcopy
 import time
 from multiprocessing import Process, Manager
 
-TASK_EXP = 0
+TASK_EXP = 0 # Stochastic
 HORIZON_EXP = 1
 ARM_EXP = 2
 SUBSET_EXP = 3
@@ -87,15 +87,15 @@ def plot(X, regret_dict, title, xlabel, ylabel, **kwargs):
     GML_Y = np.mean(GML_regrets, axis=0)
 
     # Unfinished runs have regret == -1
-    moss_max_idx = max(np.where(moss_regrets!=-1)[1])+1
-    EE_max_idx = max(np.where(EE_regrets!=-1)[1])+1
     opt_moss_max_idx = max(np.where(opt_moss_regrets!=-1)[1])+1
-    GML_max_idx = max(np.where(GML_regrets!=-1)[1])+1
+    moss_max_idx = min(opt_moss_max_idx, max(np.where(moss_regrets!=-1)[1])+1)
+    EE_max_idx = min(opt_moss_max_idx, max(np.where(EE_regrets!=-1)[1])+1)
+    GML_max_idx = min(opt_moss_max_idx, max(np.where(GML_regrets!=-1)[1])+1)
 
     if "PMML" not in kwargs['skip_list']:
         PMML_regrets = regret_dict["PMML_regrets"]
         PMML_Y = np.mean(PMML_regrets, axis=0)
-        PMML_max_idx = max(np.where(PMML_regrets!=-1)[1])+1
+        PMML_max_idx = min(opt_moss_max_idx, max(np.where(PMML_regrets!=-1)[1])+1)
 
     if kwargs['plot_var'] is True:
         moss_dY = 2 * np.sqrt(np.var(moss_regrets, axis=0))
@@ -103,27 +103,32 @@ def plot(X, regret_dict, title, xlabel, ylabel, **kwargs):
         opt_moss_dY = 2 * np.sqrt(np.var(opt_moss_regrets, axis=0))
         GML_dY = 2 * np.sqrt(np.var(GML_regrets, axis=0))
 
-        plt.errorbar(X[:moss_max_idx], moss_Y[:moss_max_idx], moss_dY[:moss_max_idx], fmt="-", color="green", label="MOSS")
-        plt.errorbar(X[:EE_max_idx], EE_Y[:EE_max_idx], EE_dY[:EE_max_idx], fmt="-", color="blue", label="EE")
-        plt.errorbar(X[:opt_moss_max_idx], opt_moss_Y[:opt_moss_max_idx], opt_moss_dY[:opt_moss_max_idx], fmt="-", color="black", label="Optimal MOSS")
-        plt.errorbar(X[:GML_max_idx], GML_Y[:GML_max_idx], GML_dY[:GML_max_idx], fmt="-", color="purple", label="GML")
+        plt.errorbar(X[:moss_max_idx], moss_Y[:moss_max_idx], moss_dY[:moss_max_idx], fmt="-", color="#F28522", label="MOSS", linewidth=kwargs['linewidth']) #orange
+        plt.errorbar(X[:EE_max_idx], EE_Y[:EE_max_idx], EE_dY[:EE_max_idx], fmt="-", color="#009ADE", label="EE", linewidth=kwargs['linewidth']) #blue
+        plt.errorbar(X[:GML_max_idx], GML_Y[:GML_max_idx], GML_dY[:GML_max_idx], fmt="-", color="#FF1F5B", label="GML", linewidth=kwargs['linewidth']) #red
         if "PMML" not in kwargs['skip_list']:
             PMML_dY = 2 * np.sqrt(np.var(PMML_regrets, axis=0))
-            plt.errorbar(X[:PMML_max_idx], PMML_Y[:PMML_max_idx], PMML_dY[:PMML_max_idx], fmt="-", color="red", label="PMML")
+            plt.errorbar(X[:PMML_max_idx], PMML_Y[:PMML_max_idx], PMML_dY[:PMML_max_idx], fmt="-", color="#00CD6C", label="PMML", linewidth=kwargs['linewidth'])
+        plt.errorbar(X[:opt_moss_max_idx], opt_moss_Y[:opt_moss_max_idx], opt_moss_dY[:opt_moss_max_idx], color="#A0B1BA", label="Opt-MOSS", linestyle="dashed", linewidth=kwargs['linewidth']) #gray
     else:
-        plt.plot(X[:moss_max_idx], moss_Y[:moss_max_idx], "-", color="green", label="MOSS")
-        plt.plot(X[:EE_max_idx], EE_Y[:EE_max_idx], "-", color="blue", label="EE")
-        plt.plot(X[:opt_moss_max_idx], opt_moss_Y[:opt_moss_max_idx], "-", color="black", label="Optimal MOSS")
-        plt.plot(X[:GML_max_idx], GML_Y[:GML_max_idx], "-", color="purple", label="GML")
+        plt.plot(X[:moss_max_idx], moss_Y[:moss_max_idx], "-", color="#F28522", label="MOSS", linewidth=kwargs['linewidth'])
+        plt.plot(X[:EE_max_idx], EE_Y[:EE_max_idx], "-", color="#009ADE", label="EE", linewidth=kwargs['linewidth'])
+        plt.plot(X[:GML_max_idx], GML_Y[:GML_max_idx], "-", color="#FF1F5B", label="GML", linewidth=kwargs['linewidth'])
         if "PMML" not in kwargs['skip_list']:
-            plt.plot(X[:PMML_max_idx], PMML_Y[:PMML_max_idx], "-", color="red", label="PMML")
+            plt.plot(X[:PMML_max_idx], PMML_Y[:PMML_max_idx], "-", color="#00CD6C", label="PMML", linewidth=kwargs['linewidth'])
+        plt.plot(X[:opt_moss_max_idx], opt_moss_Y[:opt_moss_max_idx], color="#A0B1BA", label="Opt-MOSS", linestyle="dashed", linewidth=kwargs['linewidth'])
 
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
-    plt.legend()
+    if kwargs["plot_legend"] is True:
+        plt.legend()
     plt.title(title)
     caller_name = inspect.stack()[1][3]
-    plt.savefig(f"./results/{caller_name}.png")
+    if kwargs['is_adversarial'] is False:
+        setting = "Stochastic"
+    else:
+        setting = "Adversarial"
+    plt.savefig(f"./results/{setting}_{caller_name}.png")
 
 
 def _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, env, **kwargs):
@@ -163,7 +168,7 @@ def _multi_process_wrapper(name, func, return_dict, **kwargs):
     return_dict[name] = output
 
 
-def _store_collected_data(raw_data_dict, cache_dict, exp_type, i, j, HORIZON, **kwargs):
+def _store_collected_data(raw_data_dict, cache_dict, exp_type, i, j, HORIZON, N_TASKS, **kwargs):
     moss_r = raw_data_dict["moss_r"]
     EE_r = raw_data_dict["EE_r"]
     opt_moss_r = raw_data_dict["opt_moss_r"]
@@ -171,13 +176,19 @@ def _store_collected_data(raw_data_dict, cache_dict, exp_type, i, j, HORIZON, **
     if "PMML" not in kwargs['skip_list']:
         PMML_r = raw_data_dict["PMML_r"]
     if exp_type == TASK_EXP:
-        for j in range(len(moss_r)):
-            if moss_r is not None: cache_dict["moss_regrets"][i,j] = np.mean(moss_r[:j+1])
-            if EE_r is not None: cache_dict["EE_regrets"][i,j] = np.mean(EE_r[:j+1])
-            if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
-                cache_dict["PMML_regrets"][i,j] = np.mean(PMML_r[:j+1])
-            if opt_moss_r is not None: cache_dict["opt_moss_regrets"][i,j] = np.mean(opt_moss_r[:j+1])
-            if GML_r is not None: cache_dict["GML_regrets"][i,j] = np.mean(GML_r[:j+1])
+#         for j in range(len(moss_r)):
+#             if moss_r is not None: cache_dict["moss_regrets"][i,j] = np.mean(moss_r[:j+1])
+#             if EE_r is not None: cache_dict["EE_regrets"][i,j] = np.mean(EE_r[:j+1])
+#             if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
+#                 cache_dict["PMML_regrets"][i,j] = np.mean(PMML_r[:j+1])
+#             if opt_moss_r is not None: cache_dict["opt_moss_regrets"][i,j] = np.mean(opt_moss_r[:j+1])
+#             if GML_r is not None: cache_dict["GML_regrets"][i,j] = np.mean(GML_r[:j+1])
+        if moss_r is not None: cache_dict["moss_regrets"][i, j] = np.mean(moss_r) / N_TASKS
+        if EE_r is not None: cache_dict["EE_regrets"][i, j] = np.mean(EE_r) / N_TASKS
+        if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
+            cache_dict["PMML_regrets"][i, j] = np.mean(PMML_r) / N_TASKS
+        if opt_moss_r is not None: cache_dict["opt_moss_regrets"][i, j] = np.mean(opt_moss_r) / N_TASKS
+        if GML_r is not None: cache_dict["GML_regrets"][i, j] = np.mean(GML_r) / N_TASKS
     elif exp_type == HORIZON_EXP:
         if moss_r is not None: cache_dict["moss_regrets"][i, j] = np.mean(moss_r) / HORIZON
         if EE_r is not None: cache_dict["EE_regrets"][i, j] = np.mean(EE_r) / HORIZON
@@ -185,6 +196,13 @@ def _store_collected_data(raw_data_dict, cache_dict, exp_type, i, j, HORIZON, **
             cache_dict["PMML_regrets"][i, j] = np.mean(PMML_r) / HORIZON
         if opt_moss_r is not None: cache_dict["opt_moss_regrets"][i, j] = np.mean(opt_moss_r) / HORIZON
         if GML_r is not None: cache_dict["GML_regrets"][i, j] = np.mean(GML_r) / HORIZON
+#     elif exp_type == AD_TASK_EXP:
+#         if moss_r is not None: cache_dict["moss_regrets"][i, j] = np.mean(moss_r) / N_TASKS
+#         if EE_r is not None: cache_dict["EE_regrets"][i, j] = np.mean(EE_r) / N_TASKS
+#         if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
+#             cache_dict["PMML_regrets"][i, j] = np.mean(PMML_r) / N_TASKS
+#         if opt_moss_r is not None: cache_dict["opt_moss_regrets"][i, j] = np.mean(opt_moss_r) / N_TASKS
+#         if GML_r is not None: cache_dict["GML_regrets"][i, j] = np.mean(GML_r) / N_TASKS
     else:
         if moss_r is not None: cache_dict["moss_regrets"][i, j] = np.mean(moss_r)
         if EE_r is not None: cache_dict["EE_regrets"][i, j] = np.mean(EE_r)
@@ -287,54 +305,50 @@ def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, env, exp_type,
     return raw_data_dict, timer_cache
 
 
-def task_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, **kwargs):
-    if kwargs['is_adversarial'] is False:
-        setting = "Stochastic setting"
-        env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
-    else:
-        setting = "Adversarial setting"
-        env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
-    cache_dict = _init_cache(N_EXPS, N_TASKS)
+# def task_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, **kwargs):
+#     setting = "Stochastic"
+#     env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
+#     cache_dict = _init_cache(N_EXPS, N_TASKS)
 
-    def _create_process(i):
-        tmp_kwargs = deepcopy(kwargs)
-        tmp_kwargs["cache_dict"] = cache_dict
-        tmp_kwargs["agent_dict"] = agent_dict
-        tmp_kwargs["i"] = i
-        tmp_kwargs["j"] = None
-        tmp_kwargs["n_tasks"] = N_TASKS
-        tmp_kwargs["env"] = env
-        tmp_kwargs["HORIZON"] = HORIZON
-        tmp_kwargs["exp_type"] = TASK_EXP
-        tmp_kwargs["timer_cache"] = {'timeout':kwargs['timeout']}
-        return Process(target=_multi_process_wrapper, args=(i, _collect_data, return_dict), kwargs=tmp_kwargs)
+#     def _create_process(i):
+#         tmp_kwargs = deepcopy(kwargs)
+#         tmp_kwargs["cache_dict"] = cache_dict
+#         tmp_kwargs["agent_dict"] = agent_dict
+#         tmp_kwargs["i"] = i
+#         tmp_kwargs["j"] = None
+#         tmp_kwargs["n_tasks"] = N_TASKS
+#         tmp_kwargs["env"] = env
+#         tmp_kwargs["HORIZON"] = HORIZON
+#         tmp_kwargs["exp_type"] = TASK_EXP
+#         tmp_kwargs["timer_cache"] = {'timeout':kwargs['timeout']}
+#         return Process(target=_multi_process_wrapper, args=(i, _collect_data, return_dict), kwargs=tmp_kwargs)
 
-    return_dict = Manager().dict()
-    processes = []
-    for i in trange(N_EXPS):
-        agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, env, **kwargs)
-        p = _create_process(i)
-        p.start()
-        processes.append(p)
+#     return_dict = Manager().dict()
+#     processes = []
+#     for i in trange(N_EXPS):
+#         agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, env, **kwargs)
+#         p = _create_process(i)
+#         p.start()
+#         processes.append(p)
 
-    for i in range(N_EXPS):
-        processes[i].join()
-        cache_dict = _store_collected_data(return_dict[i][0], cache_dict, TASK_EXP, i, None, HORIZON, **kwargs)
+#     for i in range(N_EXPS):
+#         processes[i].join()
+#         cache_dict = _store_collected_data(return_dict[i][0], cache_dict, TASK_EXP, i, None, HORIZON, N_TASKS, **kwargs)
 
-    X = np.arange(N_TASKS)
-    gap = kwargs["gap_constrain"]
-    title = f"Regret: {setting}, {N_ARMS} arms, horizon {HORIZON}, {int(env.n_experts)} experts, gap = {gap:.3f} and subset size {OPT_SIZE}"
-    xlabel, ylabel = "Number of tasks", "Average Regret per task"
-    step = kwargs["task_cache_step"]
-    indices = np.arange(0, X.shape[0], step).astype(int)
-    cache_dict["moss_regrets"] = cache_dict["moss_regrets"][:, indices]
-    cache_dict["EE_regrets"] = cache_dict["EE_regrets"][:, indices]
-    if "PMML" not in kwargs['skip_list']:
-        cache_dict["PMML_regrets"] = cache_dict["PMML_regrets"][:, indices]
-    cache_dict["opt_moss_regrets"] = cache_dict["opt_moss_regrets"][:, indices]
-    cache_dict["GML_regrets"] = cache_dict["GML_regrets"][:, indices]
-    plot(X[indices], cache_dict, title, xlabel, ylabel, **kwargs)
-    return (X, cache_dict, title, xlabel, ylabel)
+#     X = np.arange(N_TASKS)
+#     gap = kwargs["gap_constrain"]
+#     title = f"{setting}: {N_ARMS} arms, horizon = {HORIZON}, and subset size = {OPT_SIZE}"
+#     xlabel, ylabel = "Number of tasks", "Average Regret per task"
+#     step = kwargs["task_cache_step"]
+#     indices = np.arange(0, X.shape[0], step).astype(int)
+#     cache_dict["moss_regrets"] = cache_dict["moss_regrets"][:, indices]
+#     cache_dict["EE_regrets"] = cache_dict["EE_regrets"][:, indices]
+#     if "PMML" not in kwargs['skip_list']:
+#         cache_dict["PMML_regrets"] = cache_dict["PMML_regrets"][:, indices]
+#     cache_dict["opt_moss_regrets"] = cache_dict["opt_moss_regrets"][:, indices]
+#     cache_dict["GML_regrets"] = cache_dict["GML_regrets"][:, indices]
+#     plot(X[indices], cache_dict, title, xlabel, ylabel, **kwargs)
+#     return (X, cache_dict, title, xlabel, ylabel)
 
 
 def horizon_exp(
@@ -361,7 +375,7 @@ def horizon_exp(
                     env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=h, **kwargs)
                 agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, h, OPT_SIZE, env, **kwargs)
                 raw_output, timer_cache = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, h, env, HORIZON_EXP, timer_cache, **kwargs)
-                tmp_dict = _store_collected_data(raw_output, tmp_dict, HORIZON_EXP, i, j, h, **kwargs)
+                tmp_dict = _store_collected_data(raw_output, tmp_dict, HORIZON_EXP, i, j, h, N_TASKS, **kwargs)
             return tmp_dict
         return Process(target=_multi_process_wrapper, args=(i, _sub_routine, return_dict), kwargs=tmp_dict)
 
@@ -383,10 +397,10 @@ def horizon_exp(
 
     X = horizon_list
     if kwargs['is_adversarial'] is False:
-        setting = "Stochastic setting"
+        setting = "Stochastic"
     else:
-        setting = "Adversarial setting"
-    title = f"Regret: {setting}, {N_ARMS} arms, {N_TASKS} tasks, all experts, gap cond. satisfied and subset size {OPT_SIZE}"
+        setting = "Adversarial"
+    title = f"{setting}: {N_ARMS} arms, {N_TASKS} tasks, and subset size = {OPT_SIZE}"
     xlabel, ylabel = "Horizon", "Average Regret per Step"
     plot(X, cache_dict, title, xlabel, ylabel, **kwargs)
     return (X, cache_dict, title, xlabel, ylabel)
@@ -408,7 +422,7 @@ def arms_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, n_arms_list=np.arange(8, 69, 15
                     env = bandit.AdvMetaBernoulli(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
                 agent_dict = _init_agents(N_EXPS, N_TASKS, b, HORIZON, OPT_SIZE, env, **kwargs)
                 raw_output, timer_cache = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, HORIZON, env, ARM_EXP, timer_cache, **kwargs)
-                tmp_dict = _store_collected_data(raw_output, tmp_dict, ARM_EXP, i, j, HORIZON, **kwargs)
+                tmp_dict = _store_collected_data(raw_output, tmp_dict, ARM_EXP, i, j, HORIZON, N_TASKS, **kwargs)
             return tmp_dict
         return Process(target=_multi_process_wrapper, args=(i, _sub_routine, return_dict), kwargs=tmp_dict)
 
@@ -430,10 +444,10 @@ def arms_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, n_arms_list=np.arange(8, 69, 15
 
     X = n_arms_list
     if kwargs['is_adversarial'] is False:
-        setting = "Stochastic setting"
+        setting = "Stochastic"
     else:
-        setting = "Adversarial setting"
-    title = f"Regret: {setting}, Horizon {HORIZON}, {N_TASKS} tasks, all experts, gap cond. satisfied and subset size {OPT_SIZE}"
+        setting = "Adversarial"
+    title = f"{setting}: horizon = {HORIZON}, {N_TASKS} tasks, and subset size = {OPT_SIZE}"
     xlabel, ylabel = "Number of Arms", "Regret"
     plot(X, cache_dict, title, xlabel, ylabel, **kwargs)
     return (X, cache_dict, title, xlabel, ylabel)
@@ -456,7 +470,7 @@ def subset_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, opt_size_list=None, **kwargs):
                     env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
                 agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, s, env, **kwargs)
                 raw_output, timer_cache = _collect_data(agent_dict, cache_dict, i, j, N_TASKS, HORIZON, env, SUBSET_EXP, timer_cache, **kwargs)
-                tmp_dict = _store_collected_data(raw_output, tmp_dict, SUBSET_EXP, i, j, HORIZON, **kwargs)
+                tmp_dict = _store_collected_data(raw_output, tmp_dict, SUBSET_EXP, i, j, HORIZON, N_TASKS, **kwargs)
             return tmp_dict
         return Process(target=_multi_process_wrapper, args=(i, _sub_routine, return_dict), kwargs=tmp_dict)
 
@@ -479,10 +493,64 @@ def subset_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, opt_size_list=None, **kwargs):
     X = opt_size_list
     gap = kwargs["gap_constrain"]
     if kwargs['is_adversarial'] is False:
-        setting = "Stochastic setting"
+        setting = "Stochastic"
     else:
-        setting = "Adversarial setting"
-    title = f"Regret: {setting}, {N_ARMS} arms, Horizon {HORIZON}, {N_TASKS} tasks, gap = {gap:.3f} and all experts"
+        setting = "Adversarial"
+    title = f"{setting}: {N_ARMS} arms, horizon = {HORIZON}, and {N_TASKS} tasks"
     xlabel, ylabel = "subset size", "Regret"
+    plot(X, cache_dict, title, xlabel, ylabel, **kwargs)
+    return (X, cache_dict, title, xlabel, ylabel)
+
+def task_exp(
+    N_EXPS,
+    HORIZON,
+    N_ARMS,
+    OPT_SIZE,
+    task_list=np.arange(600, 1002, 100),
+    **kwargs,
+):
+    cache_dict = _init_cache(N_EXPS, task_list.shape[0])
+    def _create_process(i):
+        tmp_dict = {"rand_seed":np.random.randint(1000)}
+        def _sub_routine(rand_seed):
+            np.random.seed(rand_seed)
+            timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0,}
+            tmp_dict = deepcopy(cache_dict)
+            for j, n_t in enumerate(task_list):
+                kwargs["gap_constrain"] = min(1, np.sqrt(N_ARMS * np.log(n_t) / HORIZON))
+                tmp = kwargs["gap_constrain"]
+                if kwargs['is_adversarial'] is False:
+                    env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=n_t, **kwargs)
+                else:
+                    env = bandit.AdvMetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=n_t, horizon=HORIZON, **kwargs)
+                agent_dict = _init_agents(N_EXPS, n_t, N_ARMS, HORIZON, OPT_SIZE, env, **kwargs)
+                raw_output, timer_cache = _collect_data(agent_dict, cache_dict, i, j, n_t, HORIZON, env, TASK_EXP, timer_cache, **kwargs)
+                tmp_dict = _store_collected_data(raw_output, tmp_dict, TASK_EXP, i, j, HORIZON, n_t, **kwargs)
+            return tmp_dict
+        return Process(target=_multi_process_wrapper, args=(i, _sub_routine, return_dict), kwargs=tmp_dict)
+
+    return_dict = Manager().dict()
+    processes = []
+    for i in trange(N_EXPS):
+        p = _create_process(i)
+        p.start()
+        processes.append(p)
+
+    for i in range(N_EXPS):
+        processes[i].join()
+        cache_dict["moss_regrets"][i] = return_dict[i]["moss_regrets"][i]
+        cache_dict["EE_regrets"][i] = return_dict[i]["EE_regrets"][i]
+        cache_dict["opt_moss_regrets"][i] = return_dict[i]["opt_moss_regrets"][i]
+        cache_dict["GML_regrets"][i] = return_dict[i]["GML_regrets"][i]
+        if "PMML" not in kwargs['skip_list']:
+            cache_dict["PMML_regrets"][i] = return_dict[i]["PMML_regrets"][i]
+
+    X = task_list
+    if kwargs['is_adversarial'] is False:
+        setting = "Stochastic"
+    else:
+        setting = "Adversarial"
+    title = f"{setting}: {N_ARMS} arms, horizon = {HORIZON}, and subset size = {OPT_SIZE}"
+    xlabel, ylabel = "Number of tasks", "Average Regret per task"
     plot(X, cache_dict, title, xlabel, ylabel, **kwargs)
     return (X, cache_dict, title, xlabel, ylabel)
