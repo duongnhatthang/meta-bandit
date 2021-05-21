@@ -16,7 +16,6 @@ font = {
 plt.rc('font', **font)
 plt.rcParams['pdf.fonttype'] = 42
 plt.rcParams['ps.fonttype'] = 42
-# plt.rcParams.update({'font.size': 16}) # Pick between 7 and 10
 plt.rcParams['figure.figsize'] = [9, 5.5] # NIPS format: [9, 5.5]
 plt.rcParams['figure.dpi'] = 300
 

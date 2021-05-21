@@ -176,13 +176,6 @@ def _store_collected_data(raw_data_dict, cache_dict, exp_type, i, j, HORIZON, N_
     if "PMML" not in kwargs['skip_list']:
         PMML_r = raw_data_dict["PMML_r"]
     if exp_type == TASK_EXP:
-#         for j in range(len(moss_r)):
-#             if moss_r is not None: cache_dict["moss_regrets"][i,j] = np.mean(moss_r[:j+1])
-#             if EE_r is not None: cache_dict["EE_regrets"][i,j] = np.mean(EE_r[:j+1])
-#             if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
-#                 cache_dict["PMML_regrets"][i,j] = np.mean(PMML_r[:j+1])
-#             if opt_moss_r is not None: cache_dict["opt_moss_regrets"][i,j] = np.mean(opt_moss_r[:j+1])
-#             if GML_r is not None: cache_dict["GML_regrets"][i,j] = np.mean(GML_r[:j+1])
         if moss_r is not None: cache_dict["moss_regrets"][i, j] = np.mean(moss_r) / N_TASKS
         if EE_r is not None: cache_dict["EE_regrets"][i, j] = np.mean(EE_r) / N_TASKS
         if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
@@ -196,13 +189,6 @@ def _store_collected_data(raw_data_dict, cache_dict, exp_type, i, j, HORIZON, N_
             cache_dict["PMML_regrets"][i, j] = np.mean(PMML_r) / HORIZON
         if opt_moss_r is not None: cache_dict["opt_moss_regrets"][i, j] = np.mean(opt_moss_r) / HORIZON
         if GML_r is not None: cache_dict["GML_regrets"][i, j] = np.mean(GML_r) / HORIZON
-#     elif exp_type == AD_TASK_EXP:
-#         if moss_r is not None: cache_dict["moss_regrets"][i, j] = np.mean(moss_r) / N_TASKS
-#         if EE_r is not None: cache_dict["EE_regrets"][i, j] = np.mean(EE_r) / N_TASKS
-#         if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
-#             cache_dict["PMML_regrets"][i, j] = np.mean(PMML_r) / N_TASKS
-#         if opt_moss_r is not None: cache_dict["opt_moss_regrets"][i, j] = np.mean(opt_moss_r) / N_TASKS
-#         if GML_r is not None: cache_dict["GML_regrets"][i, j] = np.mean(GML_r) / N_TASKS
     else:
         if moss_r is not None: cache_dict["moss_regrets"][i, j] = np.mean(moss_r)
         if EE_r is not None: cache_dict["EE_regrets"][i, j] = np.mean(EE_r)
@@ -303,52 +289,6 @@ def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, env, exp_type,
     if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
         raw_data_dict["PMML_r"] = PMML_r
     return raw_data_dict, timer_cache
-
-
-# def task_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, **kwargs):
-#     setting = "Stochastic"
-#     env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
-#     cache_dict = _init_cache(N_EXPS, N_TASKS)
-
-#     def _create_process(i):
-#         tmp_kwargs = deepcopy(kwargs)
-#         tmp_kwargs["cache_dict"] = cache_dict
-#         tmp_kwargs["agent_dict"] = agent_dict
-#         tmp_kwargs["i"] = i
-#         tmp_kwargs["j"] = None
-#         tmp_kwargs["n_tasks"] = N_TASKS
-#         tmp_kwargs["env"] = env
-#         tmp_kwargs["HORIZON"] = HORIZON
-#         tmp_kwargs["exp_type"] = TASK_EXP
-#         tmp_kwargs["timer_cache"] = {'timeout':kwargs['timeout']}
-#         return Process(target=_multi_process_wrapper, args=(i, _collect_data, return_dict), kwargs=tmp_kwargs)
-
-#     return_dict = Manager().dict()
-#     processes = []
-#     for i in trange(N_EXPS):
-#         agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, env, **kwargs)
-#         p = _create_process(i)
-#         p.start()
-#         processes.append(p)
-
-#     for i in range(N_EXPS):
-#         processes[i].join()
-#         cache_dict = _store_collected_data(return_dict[i][0], cache_dict, TASK_EXP, i, None, HORIZON, N_TASKS, **kwargs)
-
-#     X = np.arange(N_TASKS)
-#     gap = kwargs["gap_constrain"]
-#     title = f"{setting}: {N_ARMS} arms, horizon = {HORIZON}, and subset size = {OPT_SIZE}"
-#     xlabel, ylabel = "Number of tasks", "Average Regret per task"
-#     step = kwargs["task_cache_step"]
-#     indices = np.arange(0, X.shape[0], step).astype(int)
-#     cache_dict["moss_regrets"] = cache_dict["moss_regrets"][:, indices]
-#     cache_dict["EE_regrets"] = cache_dict["EE_regrets"][:, indices]
-#     if "PMML" not in kwargs['skip_list']:
-#         cache_dict["PMML_regrets"] = cache_dict["PMML_regrets"][:, indices]
-#     cache_dict["opt_moss_regrets"] = cache_dict["opt_moss_regrets"][:, indices]
-#     cache_dict["GML_regrets"] = cache_dict["GML_regrets"][:, indices]
-#     plot(X[indices], cache_dict, title, xlabel, ylabel, **kwargs)
-#     return (X, cache_dict, title, xlabel, ylabel)
 
 
 def horizon_exp(
