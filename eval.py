@@ -167,7 +167,7 @@ if __name__ == "__main__":
         "timeout": args.timeOut, # maximum duration for each roll-outs. Unit = minute. -1 = unlimited
         "quiet": args.quiet,
 #         "skip_list": [],
-        "skip_list": ["PMML", "GML_FC"],
+        "skip_list": ["PMML", "GML_FC", "EE"],
         "linewidth": 4,
         "plot_legend": True,
         "OG_scale": 0.004,
