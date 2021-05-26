@@ -141,10 +141,10 @@ def _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, env, **kwargs):
         opt_moss_agent = algos.ExpertMOSS(n_arms=N_ARMS, horizon=HORIZON, expert_subset=env.opt_indices)
         output["opt_moss_agent"] = opt_moss_agent
     if "GML" not in kwargs['skip_list']:
-        GML_agent = algos.GML(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS)
+        GML_agent = algos.GML(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS, subset_size=OPT_SIZE)
         output["GML_agent"] = GML_agent
     if "GML_FC" not in kwargs['skip_list']:
-        GML_FC_agent = algos.GML_FC(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS)
+        GML_FC_agent = algos.GML_FC(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS, subset_size=OPT_SIZE)
         output["GML_FC_agent"] = GML_FC_agent
     if "OG" not in kwargs['skip_list']:
         OG_agent = algos.OG(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS, subset_size=OPT_SIZE, **kwargs)
