@@ -166,10 +166,11 @@ if __name__ == "__main__":
         "is_adversarial": args.isAdversarial,
         "timeout": args.timeOut, # maximum duration for each roll-outs. Unit = minute. -1 = unlimited
         "quiet": args.quiet,
-        "skip_list": [],
-#         "skip_list": ["PMML"],
+#         "skip_list": [],
+        "skip_list": ["PMML", "GML_FC"],
         "linewidth": 4,
         "plot_legend": True,
+        "OG_scale": 0.004,
     }
     tik = time.time()
     if args.exp == "task":
