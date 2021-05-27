@@ -336,7 +336,6 @@ class GML:
     def get_EXR_prob(self):
         if self.cur_task == 0 or self.cur_task > self.n_tasks - 2 : # force EXR
             return 1
-        self.find_EXT_set()
 
 #         B_Ts = np.sqrt(self.horizon * len(self.EXT_set))
 #         # G_{n+1}, the extra "-1" is because cur_task count from 0
@@ -347,15 +346,13 @@ class GML:
         p = np.sqrt((self.subset_size*self.horizon)/(self.n_tasks*self.B_TK))
         return p
 
-    def set_is_explore(self):
+    def select_alg(self):
         p = self.get_EXR_prob()
         self.is_explore = bool(np.random.choice(2, p=[1 - p, p]))
-
-    def select_alg(self):
-        self.set_is_explore()
         if self.is_explore:
             self.cur_algo = self.PE_algo
         else:
+            self.find_EXT_set()
             self.cur_algo = ExpertMOSS(self.n_arms, self.horizon, self.EXT_set)
 
     def get_action(self, obs):  # get action for each rolls-out step
