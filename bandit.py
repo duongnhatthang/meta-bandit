@@ -100,7 +100,8 @@ class MetaBernoulli(Bernoulli):
         self.action_space = spaces.Discrete(self.n_arms)
         self.observation_space = spaces.Discrete(2 * n_arms)
         self.opt_size = opt_size
-        self.gap_constrain = kwargs["gap_constrain"]
+        self.gap_constrain = None
+#         self.gap_constrain = kwargs["gap_constrain"]
         self.n_experts = comb(self.n_arms, self.opt_size)
 
         self.opt_indices = np.arange(n_arms)
