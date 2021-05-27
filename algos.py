@@ -334,9 +334,10 @@ class GML:
                 break
 
     def get_EXR_prob(self):
-#         if self.cur_task == 0 or self.cur_task > self.n_tasks - 2 : # force EXR
-#             return 1
-#         self.find_EXT_set()
+        if self.cur_task == 0 or self.cur_task > self.n_tasks - 2 : # force EXR
+            return 1
+        self.find_EXT_set()
+
 #         B_Ts = np.sqrt(self.horizon * len(self.EXT_set))
 #         # G_{n+1}, the extra "-1" is because cur_task count from 0
 #         G = np.sqrt(2*(self.B_TK-B_Ts)*(self.horizon-B_Ts)*(self.n_tasks-self.cur_task-2))
