@@ -101,8 +101,9 @@ class MetaBernoulli(Bernoulli):
         self.observation_space = spaces.Discrete(2 * n_arms)
         self.opt_size = opt_size
         self.gap_constrain = None
-#         self.gap_constrain = kwargs["gap_constrain"]
+        self.gap_constrain = kwargs["gap_constrain"]
         self.n_experts = comb(self.n_arms, self.opt_size)
+        self.n_optimal = kwargs['n_optimal']
 
         self.opt_indices = np.arange(n_arms)
         np.random.shuffle(self.opt_indices)
@@ -160,6 +161,14 @@ class OriginalAdvMetaBernoulli(MetaBernoulli):
         opt_values = np.random.uniform(low=low)
         next_p = np.random.uniform(high=opt_values - low, size=(self.n_arms, ))
         next_p[opt_arm] = opt_values
+        opt_list = [opt_arm]
+        for i in range(self.n_optimal-1): # extra optimal arms
+            while True:
+                opt_i = np.random.choice(self.n_arms)
+                if opt_i not in opt_list:
+                    next_p[opt_i] = opt_values
+                    opt_list.append(opt_i)
+                    break
         self.p_dist[self.cur_task+1] = next_p
 
 class AdvMetaBernoulli(OriginalAdvMetaBernoulli):
