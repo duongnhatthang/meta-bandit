@@ -171,7 +171,7 @@ if __name__ == "__main__":
         "linewidth": 4,
         "plot_legend": True,
         "OG_scale": 0.004,
-        'n_optimal': 2,
+        'n_optimal': 1,
     }
     tik = time.time()
     if args.exp == "task":
