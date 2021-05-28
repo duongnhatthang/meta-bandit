@@ -441,7 +441,8 @@ class OG:
         self.n_tasks = n_tasks
         self.subset_size = subset_size
         self.EXT_set = None # placeholder/dummy var
-        self.M_prime = int(np.ceil(subset_size*(1+np.log(n_tasks))))
+        self.M_prime = subset_size
+#         self.M_prime = int(np.ceil(subset_size*(1+np.log(n_tasks))))
         self.expert_list = []
         for i in range(self.M_prime):
             self.expert_list.append(Exp3(n_arms, n_tasks, is_full_info=True))
@@ -458,8 +459,13 @@ class OG:
     def find_EXT_set(self):
         self.is_select_expert = bool(np.random.choice(2, p=[1 - self._lambda, self._lambda]))
         self.meta_action = np.zeros((self.M_prime,))-1
+        tmp_list = []
         for i in range(self.M_prime):
-            self.meta_action[i] = self.expert_list[i].get_action(None)
+            a_i = self.expert_list[i].get_action(None)
+            if a_i in tmp_list:
+                a_i = np.random.choice(self.n_arms)
+            tmp_list.append(a_i)
+            self.meta_action[i] = a_i
         if self.is_select_expert is True:
             self.cur_t = np.random.choice(np.arange(1,self.M_prime))
             self.cur_a = np.random.choice(self.n_arms)

@@ -160,7 +160,6 @@ if __name__ == "__main__":
     GAP_THRESHOLD = np.sqrt(args.nArms * np.log(args.nTasks) / args.horizon)
     extra_args = {
         "exp_args": json.loads(args.expArgs),
-        "task_cache_step": 20,
         "gap_constrain": min(1,GAP_THRESHOLD*1.4),  # 1.0005 is small gap, 1.2 for large
         "plot_var": True,
         "is_adversarial": args.isAdversarial,
