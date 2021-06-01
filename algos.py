@@ -295,12 +295,13 @@ class GML:
     Greedy algorithm for bandit meta-learning
     """
 
-    def __init__(self, n_arms, horizon, n_tasks, C=1, min_index=-1000):
+    def __init__(self, n_arms, horizon, n_tasks, subset_size, C=1, min_index=-1000):
         self.n_arms = n_arms
         self.horizon = horizon
         self.n_tasks = n_tasks
+        self.subset_size = subset_size
         self.min_index = min_index
-        self.B_TK = np.sqrt(horizon * self.n_arms * np.log(self.n_arms)) 
+        self.B_TK = np.sqrt(horizon * n_arms * np.log(n_arms))
         self.tracking_stats = np.zeros((n_tasks,n_arms))
         self.EXT_set = []
         self.is_explore = None
@@ -335,22 +336,22 @@ class GML:
     def get_EXR_prob(self):
         if self.cur_task == 0 or self.cur_task > self.n_tasks - 2 : # force EXR
             return 1
-        self.find_EXT_set()
+
         B_Ts = np.sqrt(self.horizon * len(self.EXT_set))
         # G_{n+1}, the extra "-1" is because cur_task count from 0
         G = np.sqrt(2*(self.B_TK-B_Ts)*(self.horizon-B_Ts)*(self.n_tasks-self.cur_task-2))
         p = (self.horizon-B_Ts) / (self.horizon-B_Ts+G)
+#         # Commented aboved are part 3.1 (gap condition satisfied). Below are the general strategy
+#         p = np.sqrt((self.subset_size*self.horizon)/(self.n_tasks*self.B_TK))
         return p
 
-    def set_is_explore(self):
+    def select_alg(self):
         p = self.get_EXR_prob()
         self.is_explore = bool(np.random.choice(2, p=[1 - p, p]))
-
-    def select_alg(self):
-        self.set_is_explore()
         if self.is_explore:
             self.cur_algo = self.PE_algo
         else:
+            self.find_EXT_set()
             self.cur_algo = ExpertMOSS(self.n_arms, self.horizon, self.EXT_set)
 
     def get_action(self, obs):  # get action for each rolls-out step
@@ -369,3 +370,121 @@ class GML:
     def update(self, action, reward):
         if self.is_explore:
             self.PE_algo.update(action, reward)
+
+class GML_FC(GML):
+    """
+    GML Fully Cover: change the greedy algorithm to fully cover all sets, instead of stopping after having M members
+    """
+    def find_EXT_set(self):
+        """
+        Greedy algorithm to for Hitting Set Problem.
+        Return set 's' in the paper
+        """
+        M = np.nonzero(np.sum(self.tracking_stats, axis = 0))[0].shape[0] # The number of arms returned by past PE
+        assert M > 0, "Running EXT in the first task"
+        self.EXT_set = []
+        mask = np.zeros((self.n_tasks,), dtype=bool)
+        EXR_idxs = np.nonzero(np.sum(self.tracking_stats, axis = 1))
+        mask[EXR_idxs] = True
+        while(True):
+            tmp = np.sum(self.tracking_stats[mask], axis = 0) # shape = (K,)
+            max_arm_idx = np.argmax(tmp)
+            self.EXT_set.append(max_arm_idx)
+            task_idxs = np.nonzero(self.tracking_stats[:, max_arm_idx]) # make sure axis 0 is correct => correct idxs
+            mask[task_idxs] = False
+            if np.sum(mask)==0: # Covered all tasks
+                break
+
+class Exp3:
+    def __init__(self, n_arms, horizon, is_full_info, **kwargs):
+        self.n_arms = n_arms
+        self.horizon = horizon
+        self.learning_rate = self._default_learning_rate()
+        self.is_full_info = is_full_info
+        self.reset()
+
+    def reset(self):
+        self.tracking_stats = np.zeros((self.n_arms,)) #S_t
+
+    def _default_learning_rate(self):
+        return np.sqrt(2*np.log(self.n_arms)/(self.n_arms*self.horizon))
+
+    def get_action(self, obs):
+        horizon = self.horizon
+        # Max softmax trick
+        tmp = self.learning_rate*self.tracking_stats
+        tmp -= tmp.max()
+        P_t = softmax(tmp)
+        return np.random.choice(self.n_arms, p=P_t)
+
+    def update(self, action, reward):
+        # Max softmax trick
+        tmp = self.learning_rate*self.tracking_stats
+        tmp -= tmp.max()
+        P_t = softmax(tmp)
+        if self.is_full_info is False: # action is the index
+            self.tracking_stats += 1
+            self.tracking_stats[action] -= (1-reward)/P_t[action]
+        else: # reward is a vector shape (K,)
+            self.tracking_stats += reward
+
+
+class OG:
+    """
+    OG baseline. Paper: http://reports-archive.adm.cs.cmu.edu/anon/2007/CMU-CS-07-171.pdf
+    """
+
+    def __init__(self, n_arms, horizon, n_tasks, subset_size, **kwargs):
+        self.n_arms = n_arms
+        self.horizon = horizon
+        self.n_tasks = n_tasks
+        self.subset_size = subset_size
+        self.EXT_set = None # placeholder/dummy var
+        self.M_prime = subset_size
+#         self.M_prime = int(np.ceil(subset_size*(1+np.log(n_tasks))))
+        self.expert_list = []
+        for i in range(self.M_prime):
+            self.expert_list.append(Exp3(n_arms, n_tasks, is_full_info=True))
+        self._lambda = kwargs['OG_scale']*self.M_prime*(n_arms*np.log(n_arms)/n_tasks)**(1/3)
+        if self._lambda>1 or self._lambda<0:
+            print(self._lambda)
+            self._lambda = 1
+        self.find_EXT_set()
+        self.tracking_stats = None
+
+    def reset(self): # placeholder
+        pass
+
+    def find_EXT_set(self):
+        self.is_select_expert = bool(np.random.choice(2, p=[1 - self._lambda, self._lambda]))
+        self.meta_action = np.zeros((self.M_prime,))-1
+        tmp_list = []
+        for i in range(self.M_prime):
+            a_i = self.expert_list[i].get_action(None)
+            if a_i in tmp_list:
+                a_i = np.random.choice(self.n_arms)
+            tmp_list.append(a_i)
+            self.meta_action[i] = a_i
+        if self.is_select_expert is True:
+            self.cur_t = np.random.choice(np.arange(1,self.M_prime))
+            self.cur_a = np.random.choice(self.n_arms)
+            self.meta_action = self.meta_action[:self.cur_t]
+            self.meta_action[self.cur_t-1] = self.cur_a
+        self.meta_action = np.unique(self.meta_action).astype(int).tolist()
+        if -1 in self.meta_action:
+            self.meta_action.remove(-1) # remove default value
+        self.cur_algo = ExpertMOSS(self.n_arms, self.horizon, self.meta_action)
+
+    def get_action(self, obs):  # get action for each rolls-out step
+        self.tracking_stats = obs
+        return self.cur_algo.get_action(obs)
+
+    def eps_end_update(self, obs):  # update the tracking_stats after each rolls-out
+        if self.is_select_expert is True:
+            mu = self.tracking_stats[::2]
+            T = self.tracking_stats[1::2]
+            moss_avr_reward = np.sum(mu*T)/(np.sum(T))
+            exp_rewards = np.zeros((self.n_arms,))
+            exp_rewards[self.cur_a] = moss_avr_reward
+            self.expert_list[self.cur_t-1].update(None, exp_rewards)
+        self.find_EXT_set()

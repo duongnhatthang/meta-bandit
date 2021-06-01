@@ -16,7 +16,6 @@ font = {
 plt.rc('font', **font)
 plt.rcParams['pdf.fonttype'] = 42
 plt.rcParams['ps.fonttype'] = 42
-# plt.rcParams.update({'font.size': 16}) # Pick between 7 and 10
 plt.rcParams['figure.figsize'] = [9, 5.5] # NIPS format: [9, 5.5]
 plt.rcParams['figure.dpi'] = 300
 
@@ -43,7 +42,7 @@ def task_exp(args, extra_args):
         indices = np.arange(0, X.shape[0], extra_args["task_cache_step"]).astype(int)
         utils.plot(X[indices], regret_dict, title, xlabel, ylabel, extra_args["plot_var"])
         plt.savefig(os.path.join(args.cacheDir, "task_exp.png"))
-    pickle.dump(regret_dict, open(os.path.join(args.cacheDir, setting+"_tasks.p"), "wb"))
+    pickle.dump(regret_dict, open(os.path.join(args.cacheDir, setting+str(extra_args['n_optimal'])+"_tasks_"+str(time.time())+'.p'), "wb"))
 
 
 def horizon_exp(args, extra_args):
@@ -66,7 +65,7 @@ def horizon_exp(args, extra_args):
         title = f'{setting}: {N_ARMS} arms, {N_TASKS} tasks, and subset size = {OPT_SIZE}'
         xlabel, ylabel = "Horizon", "Average Regret per Step"
         utils.plot(X_h, regret_dict_h, title, xlabel, ylabel, extra_args["plot_var"])
-    pickle.dump(regret_dict_h, open(os.path.join(args.cacheDir, setting+"_horizon.p"), "wb"))
+    pickle.dump(regret_dict_h, open(os.path.join(args.cacheDir, setting+str(extra_args['n_optimal'])+"_horizon_"+str(time.time())+'.p'), "wb"))
 
 
 def subset_exp(args, extra_args):
@@ -92,7 +91,7 @@ def subset_exp(args, extra_args):
         xlabel, ylabel = "subset size", "Regret"
         regret_dict_e = pickle.load(open(os.path.join(args.cacheDir, "subset_cache.p"), "rb"))
         utils.plot(X_e, regret_dict_e, title, xlabel, ylabel, extra_args["plot_var"])
-    pickle.dump(regret_dict_e, open(os.path.join(args.cacheDir, setting+"_subset.p"), "wb"))
+    pickle.dump(regret_dict_e, open(os.path.join(args.cacheDir, setting+str(extra_args['n_optimal'])+"_subset_"+str(time.time())+'.p'), "wb"))
 
 
 def arms_exp(args, extra_args):
@@ -115,7 +114,7 @@ def arms_exp(args, extra_args):
         X_b = np.arange(3, 8, 1)
         regret_dict_b = pickle.load(open(os.path.join(args.cacheDir, "arms_cache.p"), "rb"))
         utils.plot(X_b, regret_dict_b, title, xlabel, ylabel, extra_args["plot_var"])
-    pickle.dump(regret_dict_b, open(os.path.join(args.cacheDir, setting+"_arms.p"), "wb"))
+    pickle.dump(regret_dict_b, open(os.path.join(args.cacheDir, setting+str(extra_args['n_optimal'])+"_arms_"+str(time.time())+'.p'), "wb"))
 
 
 if __name__ == "__main__":
@@ -161,16 +160,17 @@ if __name__ == "__main__":
     GAP_THRESHOLD = np.sqrt(args.nArms * np.log(args.nTasks) / args.horizon)
     extra_args = {
         "exp_args": json.loads(args.expArgs),
-        "task_cache_step": 20,
         "gap_constrain": min(1,GAP_THRESHOLD*1.4),  # 1.0005 is small gap, 1.2 for large
         "plot_var": True,
         "is_adversarial": args.isAdversarial,
         "timeout": args.timeOut, # maximum duration for each roll-outs. Unit = minute. -1 = unlimited
         "quiet": args.quiet,
-        "skip_list": [],
-#         "skip_list": ["PMML"],
+#         "skip_list": [],
+        "skip_list": ["PMML", "GML_FC", "EE",],
         "linewidth": 4,
         "plot_legend": True,
+        "OG_scale": 0.008,
+        'n_optimal': 2,
     }
     tik = time.time()
     if args.exp == "task":

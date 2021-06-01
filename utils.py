@@ -43,7 +43,7 @@ def rolls_out(agent, env, horizon, quiet):
     return regret
 
 
-def meta_rolls_out(n_tasks, agent, env, horizon, timeout=None, **kwargs):
+def meta_rolls_out(n_tasks, agent, env, horizon, **kwargs):
     """
     Rolls-out n_tasks
     """
@@ -69,54 +69,49 @@ def meta_rolls_out(n_tasks, agent, env, horizon, timeout=None, **kwargs):
                 EXT_set = agent.EXT_set
 
             env.generate_next_task(EXT_set)
-        if timeout is not None and timeout*60 < time.time() - start_time:
-            print('Timeout! Ending this task ...')
-            break
     return regrets
 
 
 def plot(X, regret_dict, title, xlabel, ylabel, **kwargs):
-    moss_regrets = regret_dict["moss_regrets"]
-    EE_regrets = regret_dict["EE_regrets"]
-    opt_moss_regrets = regret_dict["opt_moss_regrets"]
-    GML_regrets = regret_dict["GML_regrets"]
-
-    moss_Y = np.mean(moss_regrets, axis=0)
-    EE_Y = np.mean(EE_regrets, axis=0)
-    opt_moss_Y = np.mean(opt_moss_regrets, axis=0)
-    GML_Y = np.mean(GML_regrets, axis=0)
-
     # Unfinished runs have regret == -1
-    opt_moss_max_idx = max(np.where(opt_moss_regrets!=-1)[1])+1
-    moss_max_idx = min(opt_moss_max_idx, max(np.where(moss_regrets!=-1)[1])+1)
-    EE_max_idx = min(opt_moss_max_idx, max(np.where(EE_regrets!=-1)[1])+1)
-    GML_max_idx = min(opt_moss_max_idx, max(np.where(GML_regrets!=-1)[1])+1)
-
-    if "PMML" not in kwargs['skip_list']:
-        PMML_regrets = regret_dict["PMML_regrets"]
-        PMML_Y = np.mean(PMML_regrets, axis=0)
-        PMML_max_idx = min(opt_moss_max_idx, max(np.where(PMML_regrets!=-1)[1])+1)
-
-    if kwargs['plot_var'] is True:
-        moss_dY = 2 * np.sqrt(np.var(moss_regrets, axis=0))
-        EE_dY = 2 * np.sqrt(np.var(EE_regrets, axis=0))
-        opt_moss_dY = 2 * np.sqrt(np.var(opt_moss_regrets, axis=0))
-        GML_dY = 2 * np.sqrt(np.var(GML_regrets, axis=0))
-
-        plt.errorbar(X[:moss_max_idx], moss_Y[:moss_max_idx], moss_dY[:moss_max_idx], fmt="-", color="#F28522", label="MOSS", linewidth=kwargs['linewidth']) #orange
-        plt.errorbar(X[:EE_max_idx], EE_Y[:EE_max_idx], EE_dY[:EE_max_idx], fmt="-", color="#009ADE", label="EE", linewidth=kwargs['linewidth']) #blue
-        plt.errorbar(X[:GML_max_idx], GML_Y[:GML_max_idx], GML_dY[:GML_max_idx], fmt="-", color="#FF1F5B", label="GML", linewidth=kwargs['linewidth']) #red
-        if "PMML" not in kwargs['skip_list']:
-            PMML_dY = 2 * np.sqrt(np.var(PMML_regrets, axis=0))
-            plt.errorbar(X[:PMML_max_idx], PMML_Y[:PMML_max_idx], PMML_dY[:PMML_max_idx], fmt="-", color="#00CD6C", label="PMML", linewidth=kwargs['linewidth'])
-        plt.errorbar(X[:opt_moss_max_idx], opt_moss_Y[:opt_moss_max_idx], opt_moss_dY[:opt_moss_max_idx], color="#A0B1BA", label="Opt-MOSS", linestyle="dashed", linewidth=kwargs['linewidth']) #gray
+    tmp = np.where(regret_dict["opt_moss_regrets"]==-1)[1]
+    if tmp.shape[0] == 0:
+        opt_moss_max_idx = regret_dict["opt_moss_regrets"].shape[1]
     else:
-        plt.plot(X[:moss_max_idx], moss_Y[:moss_max_idx], "-", color="#F28522", label="MOSS", linewidth=kwargs['linewidth'])
-        plt.plot(X[:EE_max_idx], EE_Y[:EE_max_idx], "-", color="#009ADE", label="EE", linewidth=kwargs['linewidth'])
-        plt.plot(X[:GML_max_idx], GML_Y[:GML_max_idx], "-", color="#FF1F5B", label="GML", linewidth=kwargs['linewidth'])
-        if "PMML" not in kwargs['skip_list']:
-            plt.plot(X[:PMML_max_idx], PMML_Y[:PMML_max_idx], "-", color="#00CD6C", label="PMML", linewidth=kwargs['linewidth'])
-        plt.plot(X[:opt_moss_max_idx], opt_moss_Y[:opt_moss_max_idx], color="#A0B1BA", label="Opt-MOSS", linestyle="dashed", linewidth=kwargs['linewidth'])
+        opt_moss_max_idx = min(tmp)
+    def _get_info(name, max_idx):
+        regrets = regret_dict[name+"_regrets"]
+        Y = np.mean(regrets, axis=0)
+        tmp = np.where(regrets==-1)[1]
+        if tmp.shape[0] == 0:
+            agent_max_idx = regrets.shape[1]
+        else:
+            agent_max_idx = min(tmp)
+        agent_max_idx = min(max_idx, agent_max_idx)
+        dY = 2 * np.sqrt(np.var(regrets, axis=0))
+        return regrets, Y, agent_max_idx, dY
+
+    if "moss" not in kwargs['skip_list']:
+        moss_regrets, moss_Y, moss_max_idx, moss_dY = _get_info("moss", opt_moss_max_idx)
+        plt.errorbar(X[:moss_max_idx], moss_Y[:moss_max_idx], moss_dY[:moss_max_idx], fmt="-", color="#F28522", label="MOSS", linewidth=kwargs['linewidth']) #orange
+    if "EE" not in kwargs['skip_list']:
+        EE_regrets, EE_Y, EE_max_idx, EE_dY = _get_info("EE", opt_moss_max_idx)
+        plt.errorbar(X[:EE_max_idx], EE_Y[:EE_max_idx], EE_dY[:EE_max_idx], fmt="-", color="#009ADE", label="EE", linewidth=kwargs['linewidth']) #blue
+    if "PMML" not in kwargs['skip_list']:
+        PMML_regrets, PMML_Y, PMML_max_idx, PMML_dY = _get_info("PMML", opt_moss_max_idx)
+        plt.errorbar(X[:PMML_max_idx], PMML_Y[:PMML_max_idx], PMML_dY[:PMML_max_idx], fmt="-", color="#00CD6C", label="PMML", linewidth=kwargs['linewidth'])
+    if "GML_FC" not in kwargs['skip_list']:
+        GML_regrets, GML_FC_Y, GML_FC_max_idx, GML_FC_dY = _get_info("GML_FC", opt_moss_max_idx)
+        plt.errorbar(X[:GML_FC_max_idx], GML_FC_Y[:GML_FC_max_idx], GML_FC_dY[:GML_FC_max_idx], fmt="-", color="#AF58BA", label="GML_FC", linewidth=kwargs['linewidth']) #purple
+    if "GML" not in kwargs['skip_list']:
+        GML_regrets, GML_Y, GML_max_idx, GML_dY = _get_info("GML", opt_moss_max_idx)
+        plt.errorbar(X[:GML_max_idx], GML_Y[:GML_max_idx], GML_dY[:GML_max_idx], fmt="-", color="#FF1F5B", label="GML", linewidth=kwargs['linewidth']) #red
+    if "OG" not in kwargs['skip_list']:
+        OG_regrets, OG_Y, OG_max_idx, OG_dY = _get_info("OG", opt_moss_max_idx)
+        plt.errorbar(X[:OG_max_idx], OG_Y[:OG_max_idx], OG_dY[:OG_max_idx], fmt="-", color="#FFC61E", label="OG°", linewidth=kwargs['linewidth']) #yellow
+    if "opt_moss" not in kwargs['skip_list']:
+        opt_moss_regrets, opt_moss_Y, opt_moss_max_idx, opt_moss_dY = _get_info("opt_moss", opt_moss_max_idx)
+        plt.errorbar(X[:opt_moss_max_idx], opt_moss_Y[:opt_moss_max_idx], opt_moss_dY[:opt_moss_max_idx], color="#A0B1BA", label="Opt-MOSS", linestyle="dashed", linewidth=kwargs['linewidth']) #gray
 
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
@@ -128,23 +123,32 @@ def plot(X, regret_dict, title, xlabel, ylabel, **kwargs):
         setting = "Stochastic"
     else:
         setting = "Adversarial"
-    plt.savefig(f"./results/{setting}_{caller_name}.png")
+    plt.savefig(f"./results/{setting+str(kwargs['n_optimal'])}_{caller_name}_{str(time.time())}.png")
 
 
 def _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, env, **kwargs):
-    moss_agent = algos.MOSS(n_arms=N_ARMS, horizon=HORIZON)
-    EE_agent = algos.EE(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS, subset_size=OPT_SIZE)
-    opt_moss_agent = algos.ExpertMOSS(n_arms=N_ARMS, horizon=HORIZON, expert_subset=env.opt_indices)
-    GML_agent = algos.GML(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS)
-    output = {
-        "moss_agent": moss_agent,
-        "EE_agent": EE_agent,
-        "opt_moss_agent": opt_moss_agent,
-        "GML_agent": GML_agent,
-    }
+    output = {}
     if "PMML" not in kwargs['skip_list']:
         PMML_agent = algos.PMML(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS, subset_size=OPT_SIZE)
         output["PMML_agent"] = PMML_agent
+    if "moss" not in kwargs['skip_list']:
+        moss_agent = algos.MOSS(n_arms=N_ARMS, horizon=HORIZON)
+        output["moss_agent"] = moss_agent
+    if "EE" not in kwargs['skip_list']:
+        EE_agent = algos.EE(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS, subset_size=OPT_SIZE)
+        output["EE_agent"] = EE_agent
+    if "opt_moss" not in kwargs['skip_list']:
+        opt_moss_agent = algos.ExpertMOSS(n_arms=N_ARMS, horizon=HORIZON, expert_subset=env.opt_indices)
+        output["opt_moss_agent"] = opt_moss_agent
+    if "GML" not in kwargs['skip_list']:
+        GML_agent = algos.GML(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS, subset_size=OPT_SIZE)
+        output["GML_agent"] = GML_agent
+    if "GML_FC" not in kwargs['skip_list']:
+        GML_FC_agent = algos.GML_FC(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS, subset_size=OPT_SIZE)
+        output["GML_FC_agent"] = GML_FC_agent
+    if "OG" not in kwargs['skip_list']:
+        OG_agent = algos.OG(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS, subset_size=OPT_SIZE, **kwargs)
+        output["OG_agent"] = OG_agent
     return output
 
 
@@ -154,12 +158,16 @@ def _init_cache(N_EXPS, x_axis):
     PMML_regrets = np.zeros((N_EXPS, x_axis))-1
     opt_moss_regrets = np.zeros((N_EXPS, x_axis))-1
     GML_regrets = np.zeros((N_EXPS, x_axis))-1
+    GML_FC_regrets = np.zeros((N_EXPS, x_axis))-1
+    OG_regrets = np.zeros((N_EXPS, x_axis))-1
     return {
         "moss_regrets": moss_regrets,
         "EE_regrets": EE_regrets,
         "PMML_regrets": PMML_regrets,
         "opt_moss_regrets": opt_moss_regrets,
         "GML_regrets": GML_regrets,
+        "GML_FC_regrets": GML_FC_regrets,
+        "OG_regrets": OG_regrets,
     }
 
 
@@ -169,47 +177,22 @@ def _multi_process_wrapper(name, func, return_dict, **kwargs):
 
 
 def _store_collected_data(raw_data_dict, cache_dict, exp_type, i, j, HORIZON, N_TASKS, **kwargs):
-    moss_r = raw_data_dict["moss_r"]
-    EE_r = raw_data_dict["EE_r"]
-    opt_moss_r = raw_data_dict["opt_moss_r"]
-    GML_r = raw_data_dict["GML_r"]
-    if "PMML" not in kwargs['skip_list']:
-        PMML_r = raw_data_dict["PMML_r"]
-    if exp_type == TASK_EXP:
-#         for j in range(len(moss_r)):
-#             if moss_r is not None: cache_dict["moss_regrets"][i,j] = np.mean(moss_r[:j+1])
-#             if EE_r is not None: cache_dict["EE_regrets"][i,j] = np.mean(EE_r[:j+1])
-#             if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
-#                 cache_dict["PMML_regrets"][i,j] = np.mean(PMML_r[:j+1])
-#             if opt_moss_r is not None: cache_dict["opt_moss_regrets"][i,j] = np.mean(opt_moss_r[:j+1])
-#             if GML_r is not None: cache_dict["GML_regrets"][i,j] = np.mean(GML_r[:j+1])
-        if moss_r is not None: cache_dict["moss_regrets"][i, j] = np.mean(moss_r) / N_TASKS
-        if EE_r is not None: cache_dict["EE_regrets"][i, j] = np.mean(EE_r) / N_TASKS
-        if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
-            cache_dict["PMML_regrets"][i, j] = np.mean(PMML_r) / N_TASKS
-        if opt_moss_r is not None: cache_dict["opt_moss_regrets"][i, j] = np.mean(opt_moss_r) / N_TASKS
-        if GML_r is not None: cache_dict["GML_regrets"][i, j] = np.mean(GML_r) / N_TASKS
-    elif exp_type == HORIZON_EXP:
-        if moss_r is not None: cache_dict["moss_regrets"][i, j] = np.mean(moss_r) / HORIZON
-        if EE_r is not None: cache_dict["EE_regrets"][i, j] = np.mean(EE_r) / HORIZON
-        if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
-            cache_dict["PMML_regrets"][i, j] = np.mean(PMML_r) / HORIZON
-        if opt_moss_r is not None: cache_dict["opt_moss_regrets"][i, j] = np.mean(opt_moss_r) / HORIZON
-        if GML_r is not None: cache_dict["GML_regrets"][i, j] = np.mean(GML_r) / HORIZON
-#     elif exp_type == AD_TASK_EXP:
-#         if moss_r is not None: cache_dict["moss_regrets"][i, j] = np.mean(moss_r) / N_TASKS
-#         if EE_r is not None: cache_dict["EE_regrets"][i, j] = np.mean(EE_r) / N_TASKS
-#         if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
-#             cache_dict["PMML_regrets"][i, j] = np.mean(PMML_r) / N_TASKS
-#         if opt_moss_r is not None: cache_dict["opt_moss_regrets"][i, j] = np.mean(opt_moss_r) / N_TASKS
-#         if GML_r is not None: cache_dict["GML_regrets"][i, j] = np.mean(GML_r) / N_TASKS
-    else:
-        if moss_r is not None: cache_dict["moss_regrets"][i, j] = np.mean(moss_r)
-        if EE_r is not None: cache_dict["EE_regrets"][i, j] = np.mean(EE_r)
-        if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
-            cache_dict["PMML_regrets"][i, j] = np.mean(PMML_r)
-        if opt_moss_r is not None: cache_dict["opt_moss_regrets"][i, j] = np.mean(opt_moss_r)
-        if GML_r is not None: cache_dict["GML_regrets"][i, j] = np.mean(GML_r)
+    def get_info(name):
+        if name not in kwargs['skip_list'] and name+"_r" in raw_data_dict and raw_data_dict[name+"_r"] is not None:
+            if exp_type == TASK_EXP:
+                cache_dict[name+"_regrets"][i, j] = np.mean(raw_data_dict[name+"_r"]) / N_TASKS
+            if exp_type == HORIZON_EXP:
+                cache_dict[name+"_regrets"][i, j] = np.mean(raw_data_dict[name+"_r"]) / HORIZON
+            else:
+                cache_dict[name+"_regrets"][i, j] = np.mean(raw_data_dict[name+"_r"])
+        return cache_dict
+    cache_dict = get_info("moss")
+    cache_dict = get_info("opt_moss")
+    cache_dict = get_info("GML")
+    cache_dict = get_info("PMML")
+    cache_dict = get_info("GML_FC")
+    cache_dict = get_info("OG")
+    cache_dict = get_info("EE")
     return cache_dict
 
 
@@ -218,137 +201,87 @@ def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, env, exp_type,
         tic = time.time()
         r = None
         if timer_cache is None or kwargs['timeout']*60 > spent_time:
-            tmp_dict = {'quiet':kwargs['quiet'], 'is_adversarial':kwargs['is_adversarial']}
-            # using tmp_dict instead of kwargs to specify 'timeout' = None
-            r = meta_rolls_out(n_tasks, deepcopy(agent), deepcopy(env), HORIZON, timeout=None, **tmp_dict)
+            r = meta_rolls_out(n_tasks, deepcopy(agent), deepcopy(env), HORIZON, **kwargs)
         else:
             print('Timeout! Ending this task ...')
         toc = time.time()
         return (r, toc - tic)
 
     return_dict = Manager().dict()
-    def _create_task_exp_process(name):
-        tmp_kwargs = deepcopy(kwargs)
-        tmp_kwargs["n_tasks"] = n_tasks
-        tmp_kwargs["agent"] = deepcopy(agent_dict[name+"_agent"])
-        tmp_kwargs["env"] = deepcopy(env)
-        tmp_kwargs["horizon"] = HORIZON
-        return Process(target=_multi_process_wrapper, args=(name, meta_rolls_out, return_dict), kwargs=tmp_kwargs)
 
-    def _create_other_exp_process(name):
+    def _create_process(name):
         tmp_kwargs = {
             "agent":agent_dict[name+"_agent"],
             "spent_time":timer_cache[name]
         }
         return Process(target=_multi_process_wrapper, args=(name, _rolls_out_and_time, return_dict), kwargs=tmp_kwargs)
 
-    if exp_type == TASK_EXP:
-        p_moss = _create_task_exp_process("moss")
-        p_opt_moss = _create_task_exp_process("opt_moss")
-        p_EE = _create_task_exp_process("EE")
-        p_GML = _create_task_exp_process("GML")
+    if "moss" not in kwargs['skip_list']:
+        p_moss = _create_process("moss")
         p_moss.start()
+    if "opt_moss" not in kwargs['skip_list']:
+        p_opt_moss = _create_process("opt_moss")
         p_opt_moss.start()
+    if "EE" not in kwargs['skip_list']:
+        p_EE = _create_process("EE")
         p_EE.start()
+    if "GML" not in kwargs['skip_list']:
+        p_GML = _create_process("GML")
         p_GML.start()
-        if "PMML" not in kwargs['skip_list']:
-            p_PMML = _create_task_exp_process("PMML")
-            p_PMML.start()
-            p_PMML.join()
-            PMML_r = return_dict["PMML"]
+    if "GML_FC" not in kwargs['skip_list']:
+        p_GML_FC = _create_process("GML_FC")
+        p_GML_FC.start()
+    if "OG" not in kwargs['skip_list']:
+        p_OG = _create_process("OG")
+        p_OG.start()
+    if "PMML" not in kwargs['skip_list']:
+        p_PMML = _create_process("PMML")
+        p_PMML.start()
+
+    raw_data_dict = {}
+    if "PMML" not in kwargs['skip_list']:
+        p_PMML.join()
+        PMML_r = return_dict["PMML"][0]
+        timer_cache["PMML"] += return_dict["PMML"][1]
+        if PMML_r is not None:
+            raw_data_dict["PMML_r"] = PMML_r
+    if "moss" not in kwargs['skip_list']:
         p_moss.join()
-        p_opt_moss.join()
-        p_EE.join()
-        p_GML.join()
-        moss_r = return_dict["moss"]
-        opt_moss_r = return_dict["opt_moss"]
-        EE_r = return_dict["EE"]
-        GML_r = return_dict["GML"]
-    else:
-        # TODO: might catch error for calling parent's variable
-        p_moss = _create_other_exp_process("moss")
-        p_opt_moss = _create_other_exp_process("opt_moss")
-        p_EE = _create_other_exp_process("EE")
-        p_GML = _create_other_exp_process("GML")
-        p_moss.start()
-        p_opt_moss.start()
-        p_EE.start()
-        p_GML.start()
-        if "PMML" not in kwargs['skip_list']:
-            p_PMML = _create_other_exp_process("PMML")
-            p_PMML.start()
-            p_PMML.join()
-            PMML_r = return_dict["PMML"][0]
-            timer_cache["PMML"] += return_dict["PMML"][1]
-        p_moss.join()
-        p_opt_moss.join()
-        p_EE.join()
-        p_GML.join()
-                                             
         moss_r = return_dict["moss"][0]
-        opt_moss_r = return_dict["opt_moss"][0]
-        EE_r = return_dict["EE"][0]
-        GML_r = return_dict["GML"][0]
         timer_cache["moss"] += return_dict["moss"][1]
+        if moss_r is not None:
+            raw_data_dict["moss_r"] = moss_r
+    if "opt_moss" not in kwargs['skip_list']:
+        p_opt_moss.join()
+        opt_moss_r = return_dict["opt_moss"][0]
         timer_cache["opt_moss"] += return_dict["opt_moss"][1]
+        if opt_moss_r is not None:
+            raw_data_dict["opt_moss_r"] = opt_moss_r
+    if "EE" not in kwargs['skip_list']:
+        p_EE.join()
+        EE_r = return_dict["EE"][0]
         timer_cache["EE"] += return_dict["EE"][1]
+        if EE_r is not None:
+            raw_data_dict["EE_r"] = EE_r
+    if "GML" not in kwargs['skip_list']:
+        p_GML.join()
+        GML_r = return_dict["GML"][0]
         timer_cache["GML"] += return_dict["GML"][1]
-
-    raw_data_dict = {
-        "moss_r":moss_r,
-        "EE_r":EE_r,
-        "opt_moss_r":opt_moss_r,
-        "GML_r":GML_r,
-    }
-    if "PMML" not in kwargs['skip_list'] and PMML_r is not None:
-        raw_data_dict["PMML_r"] = PMML_r
+        if GML_r is not None:
+            raw_data_dict["GML_r"] = GML_r
+    if "GML_FC" not in kwargs['skip_list']:
+        p_GML_FC.join()
+        GML_FC_r = return_dict["GML_FC"][0]
+        timer_cache["GML_FC"] += return_dict["GML_FC"][1]
+        if GML_FC_r is not None:
+            raw_data_dict["GML_FC_r"] = GML_FC_r
+    if "OG" not in kwargs['skip_list']:
+        p_OG.join()
+        OG_r = return_dict["OG"][0]
+        timer_cache["OG"] += return_dict["OG"][1]
+        if OG_r is not None:
+            raw_data_dict["OG_r"] = OG_r
     return raw_data_dict, timer_cache
-
-
-# def task_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, **kwargs):
-#     setting = "Stochastic"
-#     env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
-#     cache_dict = _init_cache(N_EXPS, N_TASKS)
-
-#     def _create_process(i):
-#         tmp_kwargs = deepcopy(kwargs)
-#         tmp_kwargs["cache_dict"] = cache_dict
-#         tmp_kwargs["agent_dict"] = agent_dict
-#         tmp_kwargs["i"] = i
-#         tmp_kwargs["j"] = None
-#         tmp_kwargs["n_tasks"] = N_TASKS
-#         tmp_kwargs["env"] = env
-#         tmp_kwargs["HORIZON"] = HORIZON
-#         tmp_kwargs["exp_type"] = TASK_EXP
-#         tmp_kwargs["timer_cache"] = {'timeout':kwargs['timeout']}
-#         return Process(target=_multi_process_wrapper, args=(i, _collect_data, return_dict), kwargs=tmp_kwargs)
-
-#     return_dict = Manager().dict()
-#     processes = []
-#     for i in trange(N_EXPS):
-#         agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, env, **kwargs)
-#         p = _create_process(i)
-#         p.start()
-#         processes.append(p)
-
-#     for i in range(N_EXPS):
-#         processes[i].join()
-#         cache_dict = _store_collected_data(return_dict[i][0], cache_dict, TASK_EXP, i, None, HORIZON, N_TASKS, **kwargs)
-
-#     X = np.arange(N_TASKS)
-#     gap = kwargs["gap_constrain"]
-#     title = f"{setting}: {N_ARMS} arms, horizon = {HORIZON}, and subset size = {OPT_SIZE}"
-#     xlabel, ylabel = "Number of tasks", "Average Regret per task"
-#     step = kwargs["task_cache_step"]
-#     indices = np.arange(0, X.shape[0], step).astype(int)
-#     cache_dict["moss_regrets"] = cache_dict["moss_regrets"][:, indices]
-#     cache_dict["EE_regrets"] = cache_dict["EE_regrets"][:, indices]
-#     if "PMML" not in kwargs['skip_list']:
-#         cache_dict["PMML_regrets"] = cache_dict["PMML_regrets"][:, indices]
-#     cache_dict["opt_moss_regrets"] = cache_dict["opt_moss_regrets"][:, indices]
-#     cache_dict["GML_regrets"] = cache_dict["GML_regrets"][:, indices]
-#     plot(X[indices], cache_dict, title, xlabel, ylabel, **kwargs)
-#     return (X, cache_dict, title, xlabel, ylabel)
 
 
 def horizon_exp(
@@ -364,7 +297,7 @@ def horizon_exp(
         tmp_dict = {"rand_seed":np.random.randint(1000)}
         def _sub_routine(rand_seed):
             np.random.seed(rand_seed)
-            timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0,}
+            timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0, "GML_FC":0, "OG":0,}
             tmp_dict = deepcopy(cache_dict)
             for j, h in enumerate(horizon_list):
                 kwargs["gap_constrain"] = min(1, np.sqrt(N_ARMS * np.log(N_TASKS) / h))
@@ -388,10 +321,18 @@ def horizon_exp(
 
     for i in range(N_EXPS):
         processes[i].join()
-        cache_dict["moss_regrets"][i] = return_dict[i]["moss_regrets"][i]
-        cache_dict["EE_regrets"][i] = return_dict[i]["EE_regrets"][i]
-        cache_dict["opt_moss_regrets"][i] = return_dict[i]["opt_moss_regrets"][i]
-        cache_dict["GML_regrets"][i] = return_dict[i]["GML_regrets"][i]
+        if "moss" not in kwargs['skip_list']:
+            cache_dict["moss_regrets"][i] = return_dict[i]["moss_regrets"][i]
+        if "EE" not in kwargs['skip_list']:
+            cache_dict["EE_regrets"][i] = return_dict[i]["EE_regrets"][i]
+        if "opt_moss" not in kwargs['skip_list']:
+            cache_dict["opt_moss_regrets"][i] = return_dict[i]["opt_moss_regrets"][i]
+        if "GML" not in kwargs['skip_list']:
+            cache_dict["GML_regrets"][i] = return_dict[i]["GML_regrets"][i]
+        if "GML_FC" not in kwargs['skip_list']:
+            cache_dict["GML_FC_regrets"][i] = return_dict[i]["GML_FC_regrets"][i]
+        if "OG" not in kwargs['skip_list']:
+            cache_dict["OG_regrets"][i] = return_dict[i]["OG_regrets"][i]
         if "PMML" not in kwargs['skip_list']:
             cache_dict["PMML_regrets"][i] = return_dict[i]["PMML_regrets"][i]
 
@@ -412,7 +353,7 @@ def arms_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, n_arms_list=np.arange(8, 69, 15
         tmp_dict = {"rand_seed":np.random.randint(1000)}
         def _sub_routine(rand_seed):
             np.random.seed(rand_seed)
-            timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0,}
+            timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0, "GML_FC":0, "OG":0,}
             tmp_dict = deepcopy(cache_dict)
             for j, b in enumerate(n_arms_list):
                 kwargs["gap_constrain"] = min(1, np.sqrt(b * np.log(N_TASKS) / HORIZON))
@@ -435,10 +376,18 @@ def arms_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, n_arms_list=np.arange(8, 69, 15
 
     for i in range(N_EXPS):
         processes[i].join()
-        cache_dict["moss_regrets"][i] = return_dict[i]["moss_regrets"][i]
-        cache_dict["EE_regrets"][i] = return_dict[i]["EE_regrets"][i]
-        cache_dict["opt_moss_regrets"][i] = return_dict[i]["opt_moss_regrets"][i]
-        cache_dict["GML_regrets"][i] = return_dict[i]["GML_regrets"][i]
+        if "moss" not in kwargs['skip_list']:
+            cache_dict["moss_regrets"][i] = return_dict[i]["moss_regrets"][i]
+        if "EE" not in kwargs['skip_list']:
+            cache_dict["EE_regrets"][i] = return_dict[i]["EE_regrets"][i]
+        if "opt_moss" not in kwargs['skip_list']:
+            cache_dict["opt_moss_regrets"][i] = return_dict[i]["opt_moss_regrets"][i]
+        if "GML" not in kwargs['skip_list']:
+            cache_dict["GML_regrets"][i] = return_dict[i]["GML_regrets"][i]
+        if "GML_FC" not in kwargs['skip_list']:
+            cache_dict["GML_FC_regrets"][i] = return_dict[i]["GML_FC_regrets"][i]
+        if "OG" not in kwargs['skip_list']:
+            cache_dict["OG_regrets"][i] = return_dict[i]["OG_regrets"][i]
         if "PMML" not in kwargs['skip_list']:
             cache_dict["PMML_regrets"][i] = return_dict[i]["PMML_regrets"][i]
 
@@ -461,7 +410,7 @@ def subset_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, opt_size_list=None, **kwargs):
         tmp_dict = {"rand_seed":np.random.randint(1000)}
         def _sub_routine(rand_seed):
             np.random.seed(rand_seed)
-            timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0,}
+            timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0, "GML_FC":0, "OG":0,}
             tmp_dict = deepcopy(cache_dict)
             for j, s in enumerate(opt_size_list):
                 if kwargs['is_adversarial'] is False:
@@ -483,10 +432,18 @@ def subset_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, opt_size_list=None, **kwargs):
 
     for i in range(N_EXPS):
         processes[i].join()
-        cache_dict["moss_regrets"][i] = return_dict[i]["moss_regrets"][i]
-        cache_dict["EE_regrets"][i] = return_dict[i]["EE_regrets"][i]
-        cache_dict["opt_moss_regrets"][i] = return_dict[i]["opt_moss_regrets"][i]
-        cache_dict["GML_regrets"][i] = return_dict[i]["GML_regrets"][i]
+        if "moss" not in kwargs['skip_list']:
+            cache_dict["moss_regrets"][i] = return_dict[i]["moss_regrets"][i]
+        if "EE" not in kwargs['skip_list']:
+            cache_dict["EE_regrets"][i] = return_dict[i]["EE_regrets"][i]
+        if "opt_moss" not in kwargs['skip_list']:
+            cache_dict["opt_moss_regrets"][i] = return_dict[i]["opt_moss_regrets"][i]
+        if "GML" not in kwargs['skip_list']:
+            cache_dict["GML_regrets"][i] = return_dict[i]["GML_regrets"][i]
+        if "GML_FC" not in kwargs['skip_list']:
+            cache_dict["GML_FC_regrets"][i] = return_dict[i]["GML_FC_regrets"][i]
+        if "OG" not in kwargs['skip_list']:
+            cache_dict["OG_regrets"][i] = return_dict[i]["OG_regrets"][i]
         if "PMML" not in kwargs['skip_list']:
             cache_dict["PMML_regrets"][i] = return_dict[i]["PMML_regrets"][i]
 
@@ -514,7 +471,7 @@ def task_exp(
         tmp_dict = {"rand_seed":np.random.randint(1000)}
         def _sub_routine(rand_seed):
             np.random.seed(rand_seed)
-            timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0,}
+            timer_cache = {'timeout': kwargs['timeout'], "moss":0, "EE":0, "PMML":0, "opt_moss":0, "GML":0, "GML_FC":0, "OG":0,}
             tmp_dict = deepcopy(cache_dict)
             for j, n_t in enumerate(task_list):
                 kwargs["gap_constrain"] = min(1, np.sqrt(N_ARMS * np.log(n_t) / HORIZON))
@@ -538,10 +495,18 @@ def task_exp(
 
     for i in range(N_EXPS):
         processes[i].join()
-        cache_dict["moss_regrets"][i] = return_dict[i]["moss_regrets"][i]
-        cache_dict["EE_regrets"][i] = return_dict[i]["EE_regrets"][i]
-        cache_dict["opt_moss_regrets"][i] = return_dict[i]["opt_moss_regrets"][i]
-        cache_dict["GML_regrets"][i] = return_dict[i]["GML_regrets"][i]
+        if "moss" not in kwargs['skip_list']:
+            cache_dict["moss_regrets"][i] = return_dict[i]["moss_regrets"][i]
+        if "EE" not in kwargs['skip_list']:
+            cache_dict["EE_regrets"][i] = return_dict[i]["EE_regrets"][i]
+        if "opt_moss" not in kwargs['skip_list']:
+            cache_dict["opt_moss_regrets"][i] = return_dict[i]["opt_moss_regrets"][i]
+        if "GML" not in kwargs['skip_list']:
+            cache_dict["GML_regrets"][i] = return_dict[i]["GML_regrets"][i]
+        if "GML_FC" not in kwargs['skip_list']:
+            cache_dict["GML_FC_regrets"][i] = return_dict[i]["GML_FC_regrets"][i]
+        if "OG" not in kwargs['skip_list']:
+            cache_dict["OG_regrets"][i] = return_dict[i]["OG_regrets"][i]
         if "PMML" not in kwargs['skip_list']:
             cache_dict["PMML_regrets"][i] = return_dict[i]["PMML_regrets"][i]
 
