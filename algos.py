@@ -1,6 +1,7 @@
-import numpy as np
-from scipy.special import softmax, comb
 from itertools import combinations
+
+import numpy as np
+from scipy.special import comb, softmax
 
 
 class MOSS:
@@ -50,8 +51,10 @@ class PhaseElim:
         self.C = C
         self.reset()
         self.min_index = min_index
-        if self.n_arms*self._get_ml() > self.horizon:
-            print(f"WARNING (Phased Elimination): phase 1 duration ({self.n_arms*self._get_ml()}) is larger than the horizon ({self.horizon}) => increase horizon and/or change n_arms.")
+        if self.n_arms * self._get_ml() > self.horizon:
+            print(
+                f"WARNING (Phased Elimination): phase 1 duration ({self.n_arms*self._get_ml()}) is larger than the horizon ({self.horizon}) => increase horizon and/or change n_arms."
+            )
 
     def reset(self):
         self.ml_counter = -1
@@ -97,7 +100,7 @@ class PhaseElim:
 class EE:
     """
     Exploration-Exploitation algorithm:
-    - Run EXR with probability delta_n
+    - Run EXR with probability p
     - Aggregate surviving arms until it contains |S| arms (size of optimal subset)
     - => Then only run EXT
     """
@@ -111,9 +114,9 @@ class EE:
         self.reset()
         self.MOSS_algo = MOSS(self.n_arms, self.horizon)
         self.subset_size = subset_size
-        self.C1 = np.sqrt(horizon * self.subset_size)
-        self.C2 = np.sqrt(horizon * n_arms)
-        self.C3 = horizon
+        self.C_hit = np.sqrt(horizon * self.subset_size)
+        self.C_info = np.sqrt(horizon * n_arms)
+        self.C_miss = horizon
         self.EXT_set = []
         self.cur_task = 0
         self._set_is_explore()
@@ -121,15 +124,15 @@ class EE:
     def reset(self):
         self.PE_algo.reset()
 
-    def _get_delta_n(self):
+    def get_EXR_prob(self):
         if self.n_tasks == self.cur_task:
             return 1
-        numerator = self.C3 - self.C1
-        denominator = (self.C2 - self.C1) * 2 * (self.n_tasks - self.cur_task - 1)
+        numerator = self.C_miss - self.C_hit
+        denominator = (self.C_info - self.C_hit) * 2 * (self.n_tasks - self.cur_task - 1)
         return np.sqrt(numerator / max(1e-6, denominator))
 
     def _set_is_explore(self):
-        p = self._get_delta_n()
+        p = self.get_EXR_prob()
         p = min(p, 1)
         self.is_explore = bool(np.random.choice(2, p=[1 - p, p]))
 
@@ -153,11 +156,11 @@ class EE:
             self.PE_algo.update(action, reward)
 
 
-class PMML_EWA:
+class E_BASS_EWA:
     """
     Tracking the statistic of each EXT experts and 1 EXR expert => EWA.
-     - If EXT expert contain PE survival arms => 0 cost, else => (C3-C1)/P_{EXR} cost
-     - EXR expert => (C2-C1)/P_{EXR}
+     - If EXT expert contain PE survival arms => 0 cost, else => (C_miss-C_hit)/P_{EXR} cost
+     - EXR expert => (C_info-C_hit)/P_{EXR}
      - Only update statistic at EXR round
     """
 
@@ -168,23 +171,23 @@ class PMML_EWA:
         self.subset_size = subset_size
         self.n_experts = int(comb(n_arms, subset_size))
         self.min_index = min_index
-        self.C1 = np.sqrt(horizon * self.subset_size)
-        self.C2 = np.sqrt(horizon * n_arms)
-        self.C3 = horizon
+        self.C_hit = np.sqrt(horizon * self.subset_size)
+        self.C_info = np.sqrt(horizon * n_arms)
+        self.C_miss = horizon
         self.learning_rate = self._default_learning_rate()
         self.tracking_stats = np.zeros((self.n_experts + 1,))  # Last expert is EXR
         self.tracking_stats[-1] = 1
         self.PE_algo = PhaseElim(n_arms, horizon, C, min_index)
         self.reset()
-        self.delta_n = self._get_delta_n()
+        self.exr_prob = self.get_EXR_prob()
         assert (
-            self.delta_n <= 1 and self.delta_n >= 0
-        ), f" self.delta_n ({self.delta_n}) is not in the range [0,1]. Reduce N_EXPERT, HORIZON or increase n_tasks."
+            self.exr_prob <= 1 and self.exr_prob >= 0
+        ), f" self.exr_prob ({self.exr_prob}) is not in the range [0,1]. Reduce N_EXPERT, HORIZON or increase n_tasks."
         self._select_expert()
         assert (
-            self.C1 <= self.C2 and self.C2 <= self.C3
-        ), f"C1 ({self.C1}) < C2 ({self.C2}) < C3 ({self.C3}) not satisfied."
-        self.EXT_set = [] # For Adversarial setting only
+            self.C_hit <= self.C_info and self.C_info <= self.C_miss
+        ), f"C_hit ({self.C_hit}) < C_info ({self.C_info}) < C_miss ({self.C_miss}) not satisfied."
+        self.EXT_set = []  # For Adversarial setting only
 
     def reset(self):
         self.PE_algo.reset()
@@ -192,8 +195,8 @@ class PMML_EWA:
     def _default_learning_rate(self):
         return 1
 
-    def _get_delta_n(self):
-        return (self.C3 * np.log(self.n_experts) / (self.C2 * self.n_tasks)) ** (1 / 2)
+    def get_EXR_prob(self):
+        return (self.C_miss * np.log(self.n_experts) / (self.C_info * self.n_tasks)) ** (1 / 2)
 
     def _get_expert_at_index(self, idx):
         expert_generator = combinations(np.arange(self.n_arms), self.subset_size)
@@ -208,8 +211,8 @@ class PMML_EWA:
         tmp -= tmp.max()
         Q_n = softmax(tmp)
         P_n = np.zeros((self.n_experts + 1,))
-        P_n[-1] = self.delta_n
-        self.P_n = P_n + (1 - self.delta_n) * Q_n  # Expert distribution to select/sample from
+        P_n[-1] = self.exr_prob
+        self.P_n = P_n + (1 - self.exr_prob) * Q_n  # Expert distribution to select/sample from
         if (self.P_n == 0).any():  # fix 0 probability
             self.P_n[self.P_n == 0] = 1e-6
             self.P_n /= np.sum(self.P_n)
@@ -230,7 +233,7 @@ class PMML_EWA:
 
     def _get_tilda_c_n(self):
         tilda_c_n = np.zeros((self.n_experts + 1,))
-        tilda_c_n[-1] = self.C2
+        tilda_c_n[-1] = self.C_info
         surviving_arms = self.PE_algo.A_l
         self.EXT_set += surviving_arms.tolist()
         self.EXT_set = list(set(self.EXT_set))
@@ -240,15 +243,15 @@ class PMML_EWA:
             tmp = np.intersect1d(surviving_arms, e)
             if len(tmp) > 0:
                 experts_contains_surviving_arms.append(i)
-        tilda_c_n[np.arange(self.n_experts).astype(int)] = self.C3
-        tilda_c_n[experts_contains_surviving_arms] = self.C1
-        tilda_c_n -= self.C1
+        tilda_c_n[np.arange(self.n_experts).astype(int)] = self.C_miss
+        tilda_c_n[experts_contains_surviving_arms] = self.C_hit
+        tilda_c_n -= self.C_hit
         tilda_c_n /= self.P_n[-1]
         return tilda_c_n
 
     def _get_loss_vector(self):
         tilda_c_n = self._get_tilda_c_n()
-        l_n = self.delta_n * tilda_c_n / self.C3
+        l_n = self.exr_prob * tilda_c_n / self.C_miss
         return l_n
 
     def _update_tracking_stats(self, obs):
@@ -260,7 +263,7 @@ class PMML_EWA:
             self.PE_algo.update(action, reward)
 
 
-class PMML(PMML_EWA):
+class E_BASS(E_BASS_EWA):
     """
     Remove all experts not contain the surviving arms returned by Phase Elimination
     """
@@ -290,7 +293,7 @@ class PMML(PMML_EWA):
             self._select_expert()
 
 
-class GML:
+class G_BASS:
     """
     Greedy algorithm for bandit meta-learning
     """
@@ -302,7 +305,7 @@ class GML:
         self.subset_size = subset_size
         self.min_index = min_index
         self.B_TK = np.sqrt(horizon * n_arms * np.log(n_arms))
-        self.tracking_stats = np.zeros((n_tasks,n_arms))
+        self.tracking_stats = np.zeros((n_tasks, n_arms))
         self.EXT_set = []
         self.is_explore = None
         self.cur_task = 0
@@ -318,31 +321,31 @@ class GML:
         Greedy algorithm to for Hitting Set Problem.
         Return set 's' in the paper
         """
-        M = np.nonzero(np.sum(self.tracking_stats, axis = 0))[0].shape[0] # The number of arms returned by past PE
+        M = np.nonzero(np.sum(self.tracking_stats, axis=0))[0].shape[0]  # The number of arms returned by past PE
         assert M > 0, "Running EXT in the first task"
         self.EXT_set = []
         mask = np.zeros((self.n_tasks,), dtype=bool)
-        EXR_idxs = np.nonzero(np.sum(self.tracking_stats, axis = 1))
+        EXR_idxs = np.nonzero(np.sum(self.tracking_stats, axis=1))
         mask[EXR_idxs] = True
         for i in range(M):
-            tmp = np.sum(self.tracking_stats[mask], axis = 0) # shape = (K,)
+            tmp = np.sum(self.tracking_stats[mask], axis=0)  # shape = (K,)
             max_arm_idx = np.argmax(tmp)
             self.EXT_set.append(max_arm_idx)
-            task_idxs = np.nonzero(self.tracking_stats[:, max_arm_idx]) # make sure axis 0 is correct => correct idxs
+            task_idxs = np.nonzero(self.tracking_stats[:, max_arm_idx])  # make sure axis 0 is correct => correct idxs
             mask[task_idxs] = False
-            if np.sum(mask)==0: # Covered all tasks
+            if np.sum(mask) == 0:  # Covered all tasks
                 break
 
     def get_EXR_prob(self):
-        if self.cur_task == 0 or self.cur_task > self.n_tasks - 2 : # force EXR
+        if self.cur_task == 0 or self.cur_task > self.n_tasks - 2:  # force EXR
             return 1
 
         B_Ts = np.sqrt(self.horizon * len(self.EXT_set))
         # G_{n+1}, the extra "-1" is because cur_task count from 0
-        G = np.sqrt(2*(self.B_TK-B_Ts)*(self.horizon-B_Ts)*(self.n_tasks-self.cur_task-2))
-        p = (self.horizon-B_Ts) / (self.horizon-B_Ts+G)
-#         # Commented aboved are part 3.1 (gap condition satisfied). Below are the general strategy
-#         p = np.sqrt((self.subset_size*self.horizon)/(self.n_tasks*self.B_TK))
+        G = np.sqrt(2 * (self.B_TK - B_Ts) * (self.horizon - B_Ts) * (self.n_tasks - self.cur_task - 2))
+        p = (self.horizon - B_Ts) / (self.horizon - B_Ts + G)
+        #         # Commented aboved are part 3.1 (gap condition satisfied). Below are the general strategy
+        #         p = np.sqrt((self.subset_size*self.horizon)/(self.n_tasks*self.B_TK))
         return p
 
     def select_alg(self):
@@ -371,29 +374,32 @@ class GML:
         if self.is_explore:
             self.PE_algo.update(action, reward)
 
-class GML_FC(GML):
+
+class G_BASS_FC(G_BASS):
     """
-    GML Fully Cover: change the greedy algorithm to fully cover all sets, instead of stopping after having M members
+    G_BASS Fully Cover: change the greedy algorithm to fully cover all sets, instead of stopping after having M members
     """
+
     def find_EXT_set(self):
         """
         Greedy algorithm to for Hitting Set Problem.
         Return set 's' in the paper
         """
-        M = np.nonzero(np.sum(self.tracking_stats, axis = 0))[0].shape[0] # The number of arms returned by past PE
+        M = np.nonzero(np.sum(self.tracking_stats, axis=0))[0].shape[0]  # The number of arms returned by past PE
         assert M > 0, "Running EXT in the first task"
         self.EXT_set = []
         mask = np.zeros((self.n_tasks,), dtype=bool)
-        EXR_idxs = np.nonzero(np.sum(self.tracking_stats, axis = 1))
+        EXR_idxs = np.nonzero(np.sum(self.tracking_stats, axis=1))
         mask[EXR_idxs] = True
-        while(True):
-            tmp = np.sum(self.tracking_stats[mask], axis = 0) # shape = (K,)
+        while True:
+            tmp = np.sum(self.tracking_stats[mask], axis=0)  # shape = (K,)
             max_arm_idx = np.argmax(tmp)
             self.EXT_set.append(max_arm_idx)
-            task_idxs = np.nonzero(self.tracking_stats[:, max_arm_idx]) # make sure axis 0 is correct => correct idxs
+            task_idxs = np.nonzero(self.tracking_stats[:, max_arm_idx])  # make sure axis 0 is correct => correct idxs
             mask[task_idxs] = False
-            if np.sum(mask)==0: # Covered all tasks
+            if np.sum(mask) == 0:  # Covered all tasks
                 break
+
 
 class Exp3:
     def __init__(self, n_arms, horizon, is_full_info, **kwargs):
@@ -404,28 +410,27 @@ class Exp3:
         self.reset()
 
     def reset(self):
-        self.tracking_stats = np.zeros((self.n_arms,)) #S_t
+        self.tracking_stats = np.zeros((self.n_arms,))  # S_t
 
     def _default_learning_rate(self):
-        return np.sqrt(2*np.log(self.n_arms)/(self.n_arms*self.horizon))
+        return np.sqrt(2 * np.log(self.n_arms) / (self.n_arms * self.horizon))
 
     def get_action(self, obs):
-        horizon = self.horizon
         # Max softmax trick
-        tmp = self.learning_rate*self.tracking_stats
+        tmp = self.learning_rate * self.tracking_stats
         tmp -= tmp.max()
         P_t = softmax(tmp)
         return np.random.choice(self.n_arms, p=P_t)
 
     def update(self, action, reward):
         # Max softmax trick
-        tmp = self.learning_rate*self.tracking_stats
+        tmp = self.learning_rate * self.tracking_stats
         tmp -= tmp.max()
         P_t = softmax(tmp)
-        if self.is_full_info is False: # action is the index
+        if self.is_full_info is False:  # action is the index
             self.tracking_stats += 1
-            self.tracking_stats[action] -= (1-reward)/P_t[action]
-        else: # reward is a vector shape (K,)
+            self.tracking_stats[action] -= (1 - reward) / P_t[action]
+        else:  # reward is a vector shape (K,)
             self.tracking_stats += reward
 
 
@@ -439,25 +444,25 @@ class OG:
         self.horizon = horizon
         self.n_tasks = n_tasks
         self.subset_size = subset_size
-        self.EXT_set = None # placeholder/dummy var
+        self.EXT_set = None  # placeholder/dummy var
         self.M_prime = subset_size
-#         self.M_prime = int(np.ceil(subset_size*(1+np.log(n_tasks))))
+        #         self.M_prime = int(np.ceil(subset_size*(1+np.log(n_tasks))))
         self.expert_list = []
         for i in range(self.M_prime):
             self.expert_list.append(Exp3(n_arms, n_tasks, is_full_info=True))
-        self._lambda = kwargs['OG_scale']*self.M_prime*(n_arms*np.log(n_arms)/n_tasks)**(1/3)
-        if self._lambda>1 or self._lambda<0:
-            print(self._lambda)
-            self._lambda = 1
+        self.gamma = kwargs["OG_scale"] * self.M_prime * (n_arms * np.log(n_arms) / n_tasks) ** (1 / 3)
+        if self.gamma > 1 or self.gamma < 0:
+            print(self.gamma)
+            self.gamma = 1
         self.find_EXT_set()
         self.tracking_stats = None
 
-    def reset(self): # placeholder
+    def reset(self):  # placeholder
         pass
 
     def find_EXT_set(self):
-        self.is_select_expert = bool(np.random.choice(2, p=[1 - self._lambda, self._lambda]))
-        self.meta_action = np.zeros((self.M_prime,))-1
+        self.is_select_expert = bool(np.random.choice(2, p=[1 - self.gamma, self.gamma]))
+        self.meta_action = np.zeros((self.M_prime,)) - 1
         tmp_list = []
         for i in range(self.M_prime):
             a_i = self.expert_list[i].get_action(None)
@@ -466,13 +471,13 @@ class OG:
             tmp_list.append(a_i)
             self.meta_action[i] = a_i
         if self.is_select_expert is True:
-            self.cur_t = np.random.choice(np.arange(1,self.M_prime))
+            self.cur_t = np.random.choice(np.arange(1, self.M_prime))
             self.cur_a = np.random.choice(self.n_arms)
-            self.meta_action = self.meta_action[:self.cur_t]
-            self.meta_action[self.cur_t-1] = self.cur_a
+            self.meta_action = self.meta_action[: self.cur_t]
+            self.meta_action[self.cur_t - 1] = self.cur_a
         self.meta_action = np.unique(self.meta_action).astype(int).tolist()
         if -1 in self.meta_action:
-            self.meta_action.remove(-1) # remove default value
+            self.meta_action.remove(-1)  # remove default value
         self.cur_algo = ExpertMOSS(self.n_arms, self.horizon, self.meta_action)
 
     def get_action(self, obs):  # get action for each rolls-out step
@@ -483,8 +488,8 @@ class OG:
         if self.is_select_expert is True:
             mu = self.tracking_stats[::2]
             T = self.tracking_stats[1::2]
-            moss_avr_reward = np.sum(mu*T)/(np.sum(T))
+            moss_avr_reward = np.sum(mu * T) / (np.sum(T))
             exp_rewards = np.zeros((self.n_arms,))
             exp_rewards[self.cur_a] = moss_avr_reward
-            self.expert_list[self.cur_t-1].update(None, exp_rewards)
+            self.expert_list[self.cur_t - 1].update(None, exp_rewards)
         self.find_EXT_set()

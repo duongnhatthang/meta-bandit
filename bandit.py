@@ -1,8 +1,8 @@
 import copy
-from itertools import combinations
-from scipy.special import comb
+
 import numpy as np
 from gym import Env, spaces
+from scipy.special import comb
 
 
 class NoStatBernoulli(Env):
@@ -37,7 +37,7 @@ class NoStatBernoulli(Env):
         return -1
 
     def reset_task(self, idx):
-        """ change current env to idx """
+        """change current env to idx"""
         self.cur_task = int(idx)
         self._p = self.p_dist[self.cur_task]
         self._r = self.r_dist[self.cur_task]
@@ -103,7 +103,7 @@ class MetaBernoulli(Bernoulli):
         self.gap_constrain = None
         self.gap_constrain = kwargs["gap_constrain"]
         self.n_experts = comb(self.n_arms, self.opt_size)
-        self.n_optimal = kwargs['n_optimal']
+        self.n_optimal = kwargs["n_optimal"]
 
         self.opt_indices = np.arange(n_arms)
         np.random.shuffle(self.opt_indices)
@@ -129,7 +129,6 @@ class MetaBernoulli(Bernoulli):
 
 
 class OriginalAdvMetaBernoulli(MetaBernoulli):
-
     def __init__(self, n_arms, opt_size, n_tasks, horizon, **kwargs):
         super().__init__(n_arms, opt_size, n_tasks, **kwargs)
         self.horizon = horizon
@@ -137,20 +136,22 @@ class OriginalAdvMetaBernoulli(MetaBernoulli):
         self.B_TM = np.sqrt(horizon * opt_size)
 
     def generate_next_task(self, EXT_set):
-        if self.cur_task > self.n_tasks - 2: # Final task
+        if self.cur_task > self.n_tasks - 2:  # Final task
             return
-        if EXT_set is None: # First round
+        if EXT_set is None:  # First round
             opt_arm = np.random.choice(self.opt_indices)
         else:
             correct_EXT_set = np.intersect1d(self.opt_indices, EXT_set)
-            G = np.sqrt(2*(self.B_TK-self.B_TM)*(self.horizon-self.B_TM)*(self.n_tasks-self.cur_task-2))
-            q = (self.B_TK-self.B_TM) / (self.horizon-self.B_TM+G) # probability that next task optimal arm is NOT in correct_EXT_set
+            G = np.sqrt(2 * (self.B_TK - self.B_TM) * (self.horizon - self.B_TM) * (self.n_tasks - self.cur_task - 2))
+            q = (self.B_TK - self.B_TM) / (
+                self.horizon - self.B_TM + G
+            )  # probability that next task optimal arm is NOT in correct_EXT_set
             self.is_out_of_set = bool(np.random.choice(2, p=[1 - q, q]))
             inv_correct_EXT_set = np.setdiff1d(self.opt_indices, correct_EXT_set)
-            if len(inv_correct_EXT_set)==0:
+            if len(inv_correct_EXT_set) == 0:
                 opt_arm = np.random.choice(correct_EXT_set)
             else:
-                if self.is_out_of_set is True or len(correct_EXT_set)==0:
+                if self.is_out_of_set is True or len(correct_EXT_set) == 0:
                     opt_arm = np.random.choice(inv_correct_EXT_set)
                 else:
                     opt_arm = np.random.choice(correct_EXT_set)
@@ -159,38 +160,44 @@ class OriginalAdvMetaBernoulli(MetaBernoulli):
         if self.gap_constrain is not None:
             low = self.gap_constrain
         opt_values = np.random.uniform(low=low)
-        next_p = np.random.uniform(high=opt_values - low, size=(self.n_arms, ))
+        next_p = np.random.uniform(high=opt_values - low, size=(self.n_arms,))
         next_p[opt_arm] = opt_values
         opt_list = [opt_arm]
-        for i in range(self.n_optimal-1): # extra optimal arms
+        for i in range(self.n_optimal - 1):  # extra optimal arms
             while True:
                 opt_i = np.random.choice(self.n_arms)
                 if opt_i not in opt_list:
                     next_p[opt_i] = opt_values
                     opt_list.append(opt_i)
                     break
-        self.p_dist[self.cur_task+1] = next_p
+        self.p_dist[self.cur_task + 1] = next_p
+
 
 class AdvMetaBernoulli(OriginalAdvMetaBernoulli):
     """
     Using internal EXT_set instead of looking at the agent's EXT_set
     """
+
     def __init__(self, n_arms, opt_size, n_tasks, horizon, **kwargs):
         super().__init__(n_arms, opt_size, n_tasks, horizon, **kwargs)
         self.EXT_set = []
-        for i in range(self.n_tasks-1):
+        for i in range(self.n_tasks - 1):
             self.reset_task(i)
             opt_arm_idx = np.argmax(self.p_dist[i])
             if opt_arm_idx not in self.EXT_set:
-                G = np.sqrt(2*(self.B_TK-self.B_TM)*(self.horizon-self.B_TM)*(self.n_tasks-self.cur_task-2))
-                p = (self.horizon-self.B_TM) / (self.horizon-self.B_TM+G) # probability that the agent will EXR and find this new optimal arm
+                G = np.sqrt(
+                    2 * (self.B_TK - self.B_TM) * (self.horizon - self.B_TM) * (self.n_tasks - self.cur_task - 2)
+                )
+                p = (self.horizon - self.B_TM) / (
+                    self.horizon - self.B_TM + G
+                )  # probability that the agent will EXR and find this new optimal arm
                 # Commented aboved are part 3.1 (gap condition satisfied). Below are the general strategy
-#                 p = np.sqrt((self.opt_size*self.horizon)/(self.n_tasks*self.B_TK))
+                #                 p = np.sqrt((self.opt_size*self.horizon)/(self.n_tasks*self.B_TK))
                 does_find_new_arm = bool(np.random.choice(2, p=[1 - p, p]))
                 if does_find_new_arm is True:
                     self.EXT_set.append(opt_arm_idx)
             super().generate_next_task(self.EXT_set)
         self.reset_task(0)
 
-    def generate_next_task(self, EXT_set): # Placeholder
+    def generate_next_task(self, EXT_set):  # Placeholder
         pass
