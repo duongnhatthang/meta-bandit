@@ -2,7 +2,7 @@
 
 ## Abstract:
 - We study a meta-learning problem where the learner faces a sequence of **N** multi-armed bandit tasks. Each task is a **K**-armed bandit problem of horizon **T** that may be designed by an adversary, but the adversary is constrained to choose the optimal arm of each task in a smaller (but unknown) subset of **M** arms. 
-- We showed an algorithm (G_BASS) with a worst-case regret bounded as <img src="https://latex.codecogs.com/svg.image?\widetilde{O}(N\sqrt{MT}&plus;T\sqrt{KMN})" title="\widetilde{O}(N\sqrt{MT}+T\sqrt{KMN})" />
+- The optimal algorithm (E_BASS) have worst-case regret bounded as <img src="https://latex.codecogs.com/svg.image?\widetilde{O}(N\sqrt{MT}&plus;T\sqrt{KMN})" title="\widetilde{O}(N\sqrt{MT}+T\sqrt{KMN})" />. At the cost of an extra <img src="https://latex.codecogs.com/svg.image?O&space;(log(N))" title="O (log(N))" /> term, the problem can be solved in a computationally efficient way (G_BASS).
 
 ## Experiment results:
 
