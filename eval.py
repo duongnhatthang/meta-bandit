@@ -9,7 +9,6 @@ import utils
 
 
 font = {
-#         'family' : 'normal',
         'weight' : 'bold',
         'size'   : 22}
 
@@ -165,8 +164,7 @@ if __name__ == "__main__":
         "is_adversarial": args.isAdversarial,
         "timeout": args.timeOut, # maximum duration for each roll-outs. Unit = minute. -1 = unlimited
         "quiet": args.quiet,
-#         "skip_list": [],
-        "skip_list": ["PMML", "GML_FC", "EE",],
+        "skip_list": ["E_BASS", "G_BASS_FC", "EE",],
         "linewidth": 4,
         "plot_legend": True,
         "OG_scale": 0.008,

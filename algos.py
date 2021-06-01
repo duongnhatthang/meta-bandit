@@ -97,7 +97,7 @@ class PhaseElim:
 class EE:
     """
     Exploration-Exploitation algorithm:
-    - Run EXR with probability delta_n
+    - Run EXR with probability p
     - Aggregate surviving arms until it contains |S| arms (size of optimal subset)
     - => Then only run EXT
     """
@@ -111,9 +111,9 @@ class EE:
         self.reset()
         self.MOSS_algo = MOSS(self.n_arms, self.horizon)
         self.subset_size = subset_size
-        self.C1 = np.sqrt(horizon * self.subset_size)
-        self.C2 = np.sqrt(horizon * n_arms)
-        self.C3 = horizon
+        self.C_hit = np.sqrt(horizon * self.subset_size)
+        self.C_info = np.sqrt(horizon * n_arms)
+        self.C_miss = horizon
         self.EXT_set = []
         self.cur_task = 0
         self._set_is_explore()
@@ -121,15 +121,15 @@ class EE:
     def reset(self):
         self.PE_algo.reset()
 
-    def _get_delta_n(self):
+    def get_EXR_prob(self):
         if self.n_tasks == self.cur_task:
             return 1
-        numerator = self.C3 - self.C1
-        denominator = (self.C2 - self.C1) * 2 * (self.n_tasks - self.cur_task - 1)
+        numerator = self.C_miss - self.C_hit
+        denominator = (self.C_info - self.C_hit) * 2 * (self.n_tasks - self.cur_task - 1)
         return np.sqrt(numerator / max(1e-6, denominator))
 
     def _set_is_explore(self):
-        p = self._get_delta_n()
+        p = self.get_EXR_prob()
         p = min(p, 1)
         self.is_explore = bool(np.random.choice(2, p=[1 - p, p]))
 
@@ -153,11 +153,11 @@ class EE:
             self.PE_algo.update(action, reward)
 
 
-class PMML_EWA:
+class E_BASS_EWA:
     """
     Tracking the statistic of each EXT experts and 1 EXR expert => EWA.
-     - If EXT expert contain PE survival arms => 0 cost, else => (C3-C1)/P_{EXR} cost
-     - EXR expert => (C2-C1)/P_{EXR}
+     - If EXT expert contain PE survival arms => 0 cost, else => (C_miss-C_hit)/P_{EXR} cost
+     - EXR expert => (C_info-C_hit)/P_{EXR}
      - Only update statistic at EXR round
     """
 
@@ -168,22 +168,22 @@ class PMML_EWA:
         self.subset_size = subset_size
         self.n_experts = int(comb(n_arms, subset_size))
         self.min_index = min_index
-        self.C1 = np.sqrt(horizon * self.subset_size)
-        self.C2 = np.sqrt(horizon * n_arms)
-        self.C3 = horizon
+        self.C_hit = np.sqrt(horizon * self.subset_size)
+        self.C_info = np.sqrt(horizon * n_arms)
+        self.C_miss = horizon
         self.learning_rate = self._default_learning_rate()
         self.tracking_stats = np.zeros((self.n_experts + 1,))  # Last expert is EXR
         self.tracking_stats[-1] = 1
         self.PE_algo = PhaseElim(n_arms, horizon, C, min_index)
         self.reset()
-        self.delta_n = self._get_delta_n()
+        self.exr_prob = self.get_EXR_prob()
         assert (
-            self.delta_n <= 1 and self.delta_n >= 0
-        ), f" self.delta_n ({self.delta_n}) is not in the range [0,1]. Reduce N_EXPERT, HORIZON or increase n_tasks."
+            self.exr_prob <= 1 and self.exr_prob >= 0
+        ), f" self.exr_prob ({self.exr_prob}) is not in the range [0,1]. Reduce N_EXPERT, HORIZON or increase n_tasks."
         self._select_expert()
         assert (
-            self.C1 <= self.C2 and self.C2 <= self.C3
-        ), f"C1 ({self.C1}) < C2 ({self.C2}) < C3 ({self.C3}) not satisfied."
+            self.C_hit <= self.C_info and self.C_info <= self.C_miss
+        ), f"C_hit ({self.C_hit}) < C_info ({self.C_info}) < C_miss ({self.C_miss}) not satisfied."
         self.EXT_set = [] # For Adversarial setting only
 
     def reset(self):
@@ -192,8 +192,8 @@ class PMML_EWA:
     def _default_learning_rate(self):
         return 1
 
-    def _get_delta_n(self):
-        return (self.C3 * np.log(self.n_experts) / (self.C2 * self.n_tasks)) ** (1 / 2)
+    def get_EXR_prob(self):
+        return (self.C_miss * np.log(self.n_experts) / (self.C_info * self.n_tasks)) ** (1 / 2)
 
     def _get_expert_at_index(self, idx):
         expert_generator = combinations(np.arange(self.n_arms), self.subset_size)
@@ -208,8 +208,8 @@ class PMML_EWA:
         tmp -= tmp.max()
         Q_n = softmax(tmp)
         P_n = np.zeros((self.n_experts + 1,))
-        P_n[-1] = self.delta_n
-        self.P_n = P_n + (1 - self.delta_n) * Q_n  # Expert distribution to select/sample from
+        P_n[-1] = self.exr_prob
+        self.P_n = P_n + (1 - self.exr_prob) * Q_n  # Expert distribution to select/sample from
         if (self.P_n == 0).any():  # fix 0 probability
             self.P_n[self.P_n == 0] = 1e-6
             self.P_n /= np.sum(self.P_n)
@@ -230,7 +230,7 @@ class PMML_EWA:
 
     def _get_tilda_c_n(self):
         tilda_c_n = np.zeros((self.n_experts + 1,))
-        tilda_c_n[-1] = self.C2
+        tilda_c_n[-1] = self.C_info
         surviving_arms = self.PE_algo.A_l
         self.EXT_set += surviving_arms.tolist()
         self.EXT_set = list(set(self.EXT_set))
@@ -240,15 +240,15 @@ class PMML_EWA:
             tmp = np.intersect1d(surviving_arms, e)
             if len(tmp) > 0:
                 experts_contains_surviving_arms.append(i)
-        tilda_c_n[np.arange(self.n_experts).astype(int)] = self.C3
-        tilda_c_n[experts_contains_surviving_arms] = self.C1
-        tilda_c_n -= self.C1
+        tilda_c_n[np.arange(self.n_experts).astype(int)] = self.C_miss
+        tilda_c_n[experts_contains_surviving_arms] = self.C_hit
+        tilda_c_n -= self.C_hit
         tilda_c_n /= self.P_n[-1]
         return tilda_c_n
 
     def _get_loss_vector(self):
         tilda_c_n = self._get_tilda_c_n()
-        l_n = self.delta_n * tilda_c_n / self.C3
+        l_n = self.exr_prob * tilda_c_n / self.C_miss
         return l_n
 
     def _update_tracking_stats(self, obs):
@@ -260,7 +260,7 @@ class PMML_EWA:
             self.PE_algo.update(action, reward)
 
 
-class PMML(PMML_EWA):
+class E_BASS(E_BASS_EWA):
     """
     Remove all experts not contain the surviving arms returned by Phase Elimination
     """
@@ -290,7 +290,7 @@ class PMML(PMML_EWA):
             self._select_expert()
 
 
-class GML:
+class G_BASS:
     """
     Greedy algorithm for bandit meta-learning
     """
@@ -371,9 +371,9 @@ class GML:
         if self.is_explore:
             self.PE_algo.update(action, reward)
 
-class GML_FC(GML):
+class G_BASS_FC(G_BASS):
     """
-    GML Fully Cover: change the greedy algorithm to fully cover all sets, instead of stopping after having M members
+    G_BASS Fully Cover: change the greedy algorithm to fully cover all sets, instead of stopping after having M members
     """
     def find_EXT_set(self):
         """
@@ -445,10 +445,10 @@ class OG:
         self.expert_list = []
         for i in range(self.M_prime):
             self.expert_list.append(Exp3(n_arms, n_tasks, is_full_info=True))
-        self._lambda = kwargs['OG_scale']*self.M_prime*(n_arms*np.log(n_arms)/n_tasks)**(1/3)
-        if self._lambda>1 or self._lambda<0:
-            print(self._lambda)
-            self._lambda = 1
+        self.gamma = kwargs['OG_scale']*self.M_prime*(n_arms*np.log(n_arms)/n_tasks)**(1/3)
+        if self.gamma>1 or self.gamma<0:
+            print(self.gamma)
+            self.gamma = 1
         self.find_EXT_set()
         self.tracking_stats = None
 
@@ -456,7 +456,7 @@ class OG:
         pass
 
     def find_EXT_set(self):
-        self.is_select_expert = bool(np.random.choice(2, p=[1 - self._lambda, self._lambda]))
+        self.is_select_expert = bool(np.random.choice(2, p=[1 - self.gamma, self.gamma]))
         self.meta_action = np.zeros((self.M_prime,))-1
         tmp_list = []
         for i in range(self.M_prime):
