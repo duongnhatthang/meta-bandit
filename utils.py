@@ -123,7 +123,7 @@ def plot(X, regret_dict, title, xlabel, ylabel, **kwargs):
         setting = "Stochastic"
     else:
         setting = "Adversarial"
-    plt.savefig(f"./results/{setting+str(kwargs['n_optimal'])}_{caller_name}.png")
+    plt.savefig(f"./results/{setting+str(kwargs['n_optimal'])}_{caller_name}_{str(time.time())}.png")
 
 
 def _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, env, **kwargs):

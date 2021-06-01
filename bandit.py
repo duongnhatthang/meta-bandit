@@ -182,10 +182,10 @@ class AdvMetaBernoulli(OriginalAdvMetaBernoulli):
             self.reset_task(i)
             opt_arm_idx = np.argmax(self.p_dist[i])
             if opt_arm_idx not in self.EXT_set:
-#                 G = np.sqrt(2*(self.B_TK-self.B_TM)*(self.horizon-self.B_TM)*(self.n_tasks-self.cur_task-2))
-#                 p = (self.horizon-self.B_TM) / (self.horizon-self.B_TM+G) # probability that the agent will EXR and find this new optimal arm
+                G = np.sqrt(2*(self.B_TK-self.B_TM)*(self.horizon-self.B_TM)*(self.n_tasks-self.cur_task-2))
+                p = (self.horizon-self.B_TM) / (self.horizon-self.B_TM+G) # probability that the agent will EXR and find this new optimal arm
                 # Commented aboved are part 3.1 (gap condition satisfied). Below are the general strategy
-                p = np.sqrt((self.opt_size*self.horizon)/(self.n_tasks*self.B_TK))
+#                 p = np.sqrt((self.opt_size*self.horizon)/(self.n_tasks*self.B_TK))
                 does_find_new_arm = bool(np.random.choice(2, p=[1 - p, p]))
                 if does_find_new_arm is True:
                     self.EXT_set.append(opt_arm_idx)

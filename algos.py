@@ -337,13 +337,12 @@ class GML:
         if self.cur_task == 0 or self.cur_task > self.n_tasks - 2 : # force EXR
             return 1
 
-#         B_Ts = np.sqrt(self.horizon * len(self.EXT_set))
-#         # G_{n+1}, the extra "-1" is because cur_task count from 0
-#         G = np.sqrt(2*(self.B_TK-B_Ts)*(self.horizon-B_Ts)*(self.n_tasks-self.cur_task-2))
-#         p = (self.horizon-B_Ts) / (self.horizon-B_Ts+G)
-#         return p
-        # Commented aboved are part 3.1 (gap condition satisfied). Below are the general strategy
-        p = np.sqrt((self.subset_size*self.horizon)/(self.n_tasks*self.B_TK))
+        B_Ts = np.sqrt(self.horizon * len(self.EXT_set))
+        # G_{n+1}, the extra "-1" is because cur_task count from 0
+        G = np.sqrt(2*(self.B_TK-B_Ts)*(self.horizon-B_Ts)*(self.n_tasks-self.cur_task-2))
+        p = (self.horizon-B_Ts) / (self.horizon-B_Ts+G)
+#         # Commented aboved are part 3.1 (gap condition satisfied). Below are the general strategy
+#         p = np.sqrt((self.subset_size*self.horizon)/(self.n_tasks*self.B_TK))
         return p
 
     def select_alg(self):
