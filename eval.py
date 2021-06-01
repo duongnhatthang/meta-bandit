@@ -35,11 +35,10 @@ def task_exp(args, extra_args):
         )
     else:
         X = np.arange(N_TASKS)
-        regret_dict = pickle.load(open(os.path.join(args.cacheDir, "tasks_cache.p"), "rb"))
+        regret_dict = pickle.load(open(os.path.join(args.cacheDir, "cache_tasks.p"), "rb"))
         title = f"{setting}:{N_ARMS} arms, horizon = {HORIZON}, and subset size = {OPT_SIZE}"
         xlabel, ylabel = "Number of tasks", "Average Regret per task"
-        indices = np.arange(0, X.shape[0], extra_args["task_cache_step"]).astype(int)
-        utils.plot(X[indices], regret_dict, title, xlabel, ylabel, extra_args["plot_var"])
+        utils.plot(X, regret_dict, title, xlabel, ylabel, **extra_args)
         plt.savefig(os.path.join(args.cacheDir, "task_exp.png"))
     pickle.dump(
         regret_dict,
@@ -66,10 +65,10 @@ def horizon_exp(args, extra_args):
         )
     else:
         X_h = np.arange(50, 310, 50)
-        regret_dict_h = pickle.load(open(os.path.join(args.cacheDir, "horizon_cache.p"), "rb"))
+        regret_dict_h = pickle.load(open(os.path.join(args.cacheDir, "cache_horizon.p"), "rb"))
         title = f"{setting}: {N_ARMS} arms, {N_TASKS} tasks, and subset size = {OPT_SIZE}"
         xlabel, ylabel = "Horizon", "Average Regret per Step"
-        utils.plot(X_h, regret_dict_h, title, xlabel, ylabel, extra_args["plot_var"])
+        utils.plot(X_h, regret_dict_h, title, xlabel, ylabel, **extra_args)
     pickle.dump(
         regret_dict_h,
         open(
@@ -101,8 +100,8 @@ def subset_exp(args, extra_args):
     else:
         title = f"{setting}: {N_ARMS} arms, horizon = {HORIZON}, {N_TASKS} tasks"
         xlabel, ylabel = "subset size", "Regret"
-        regret_dict_e = pickle.load(open(os.path.join(args.cacheDir, "subset_cache.p"), "rb"))
-        utils.plot(X_e, regret_dict_e, title, xlabel, ylabel, extra_args["plot_var"])
+        regret_dict_e = pickle.load(open(os.path.join(args.cacheDir, "cache_subset.p"), "rb"))
+        utils.plot(X_e, regret_dict_e, title, xlabel, ylabel, **extra_args)
     pickle.dump(
         regret_dict_e,
         open(
@@ -130,8 +129,8 @@ def arms_exp(args, extra_args):
         title = f"{setting}: Horizon = {HORIZON}, {N_TASKS} tasks, and subset size = {OPT_SIZE}"
         xlabel, ylabel = "Number of Arms", "Regret"
         X_b = np.arange(3, 8, 1)
-        regret_dict_b = pickle.load(open(os.path.join(args.cacheDir, "arms_cache.p"), "rb"))
-        utils.plot(X_b, regret_dict_b, title, xlabel, ylabel, extra_args["plot_var"])
+        regret_dict_b = pickle.load(open(os.path.join(args.cacheDir, "cache_arms.p"), "rb"))
+        utils.plot(X_b, regret_dict_b, title, xlabel, ylabel, **extra_args)
     pickle.dump(
         regret_dict_b,
         open(
@@ -153,11 +152,11 @@ if __name__ == "__main__":
     parser.add_argument("--quiet", dest="quiet", action="store_true")
     parser.add_argument("--notQuiet", dest="quiet", action="store_false")
     parser.set_defaults(quiet=True)
-    parser.add_argument("--nTasks", help="number of tasks", type=int, default=1000)
-    parser.add_argument("--nArms", help="number of arms", type=int, default=5)
-    parser.add_argument("--nExps", help="number of repeated experiments", type=int, default=10)
-    parser.add_argument("--optSize", help="size of the optimal subset (must >1)", type=int, default=2)
-    parser.add_argument("--horizon", help="horizon of each task", type=int, default=250)
+    parser.add_argument("--nTasks", help="number of tasks", type=int, default=500)
+    parser.add_argument("--nArms", help="number of arms", type=int, default=80)
+    parser.add_argument("--nExps", help="number of repeated experiments", type=int, default=5)
+    parser.add_argument("--optSize", help="size of the optimal subset (must >1)", type=int, default=8)
+    parser.add_argument("--horizon", help="horizon of each task", type=int, default=4000)
     parser.add_argument(
         "--timeOut",
         help="maximum minutes (for all settings) per experiment (total time divided by (repeat_exps * num_tested_method))",
@@ -176,19 +175,22 @@ if __name__ == "__main__":
     exp_args = None
     if args.loadCache is True:
         if (
-            args.nTasks != 1000
-            or args.nArms != 5
-            or args.nExps != 10
-            or args.optSize != 2
-            or args.horizon != 250
+            args.nTasks != 500
+            or args.nArms != 80
+            or args.nExps != 5
+            or args.optSize != 8
+            or args.horizon != 4000
             or args.expArgs is not None
         ):
             assert (
                 False
             ), "When using loadCache, please use the default setting for nTasks, nArms, nExps, optSize, and horizon."
+        exp_args = None
+    else:
+        exp_args = json.loads(args.expArgs)
     GAP_THRESHOLD = np.sqrt(args.nArms * np.log(args.nTasks) / args.horizon)
     extra_args = {
-        "exp_args": json.loads(args.expArgs),
+        "exp_args": exp_args,
         "gap_constrain": min(1, GAP_THRESHOLD * 1.4),  # 1.0005 is small gap, 1.2 for large
         "plot_var": True,
         "is_adversarial": args.isAdversarial,
