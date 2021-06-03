@@ -515,9 +515,7 @@ def subset_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, opt_size_list=None, **kwargs):
                 if kwargs["is_adversarial"] is False:
                     env = bandit.MetaStochastic(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, **kwargs)
                 else:
-                    env = bandit.MetaAdversarial(
-                        n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, horizon=HORIZON, **kwargs
-                    )
+                    env = bandit.MetaAdversarial(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
                 agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, s, env, **kwargs)
                 raw_output, timer_cache = _collect_data(
                     agent_dict, cache_dict, i, j, N_TASKS, HORIZON, env, SUBSET_EXP, timer_cache, **kwargs

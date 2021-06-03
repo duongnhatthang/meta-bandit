@@ -127,6 +127,7 @@ class MetaStochastic(Bernoulli):
         self.reset_task(0)
         print(f"opt_indices = {self.opt_indices}")
 
+
 class NonObliviousMetaAdversarial(MetaStochastic):
     def __init__(self, n_arms, opt_size, n_tasks, horizon, **kwargs):
         super().__init__(n_arms, opt_size, n_tasks, **kwargs)
