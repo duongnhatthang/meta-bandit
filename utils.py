@@ -370,9 +370,9 @@ def horizon_exp(
             for j, h in enumerate(horizon_list):
                 kwargs["gap_constrain"] = min(1, np.sqrt(N_ARMS * np.log(N_TASKS) / h))
                 if kwargs["is_adversarial"] is False:
-                    env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
+                    env = bandit.MetaStochastic(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
                 else:
-                    env = bandit.AdvMetaBernoulli(
+                    env = bandit.MetaAdversarial(
                         n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=h, **kwargs
                     )
                 agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, h, OPT_SIZE, env, **kwargs)
@@ -414,7 +414,7 @@ def horizon_exp(
     else:
         setting = "Adversarial"
     title = f"{setting}: {N_ARMS} arms, {N_TASKS} tasks, and subset size = {OPT_SIZE}"
-    xlabel, ylabel = "Horizon", "Average Regret per Step"
+    xlabel, ylabel = "Horizon (T)", "Average Regret per Step"
     plot(X, cache_dict, title, xlabel, ylabel, **kwargs)
     return (X, cache_dict, title, xlabel, ylabel)
 
@@ -441,9 +441,9 @@ def arms_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, n_arms_list=np.arange(8, 69, 15
             for j, b in enumerate(n_arms_list):
                 kwargs["gap_constrain"] = min(1, np.sqrt(b * np.log(N_TASKS) / HORIZON))
                 if kwargs["is_adversarial"] is False:
-                    env = bandit.MetaBernoulli(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
+                    env = bandit.MetaStochastic(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
                 else:
-                    env = bandit.AdvMetaBernoulli(
+                    env = bandit.MetaAdversarial(
                         n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=HORIZON, **kwargs
                     )
                 agent_dict = _init_agents(N_EXPS, N_TASKS, b, HORIZON, OPT_SIZE, env, **kwargs)
@@ -485,7 +485,7 @@ def arms_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, n_arms_list=np.arange(8, 69, 15
     else:
         setting = "Adversarial"
     title = f"{setting}: horizon = {HORIZON}, {N_TASKS} tasks, and subset size = {OPT_SIZE}"
-    xlabel, ylabel = "Number of Arms", "Regret"
+    xlabel, ylabel = "Number of Arms (K)", "Regret"
     plot(X, cache_dict, title, xlabel, ylabel, **kwargs)
     return (X, cache_dict, title, xlabel, ylabel)
 
@@ -513,9 +513,9 @@ def subset_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, opt_size_list=None, **kwargs):
             tmp_dict = deepcopy(cache_dict)
             for j, s in enumerate(opt_size_list):
                 if kwargs["is_adversarial"] is False:
-                    env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, **kwargs)
+                    env = bandit.MetaStochastic(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, **kwargs)
                 else:
-                    env = bandit.AdvMetaBernoulli(
+                    env = bandit.MetaAdversarial(
                         n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, horizon=HORIZON, **kwargs
                     )
                 agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, s, env, **kwargs)
@@ -557,7 +557,7 @@ def subset_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, opt_size_list=None, **kwargs):
     else:
         setting = "Adversarial"
     title = f"{setting}: {N_ARMS} arms, horizon = {HORIZON}, and {N_TASKS} tasks"
-    xlabel, ylabel = "subset size", "Regret"
+    xlabel, ylabel = "Subset size (M)", "Regret"
     plot(X, cache_dict, title, xlabel, ylabel, **kwargs)
     return (X, cache_dict, title, xlabel, ylabel)
 
@@ -591,9 +591,9 @@ def task_exp(
             for j, n_t in enumerate(task_list):
                 kwargs["gap_constrain"] = min(1, np.sqrt(N_ARMS * np.log(n_t) / HORIZON))
                 if kwargs["is_adversarial"] is False:
-                    env = bandit.MetaBernoulli(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=n_t, **kwargs)
+                    env = bandit.MetaStochastic(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=n_t, **kwargs)
                 else:
-                    env = bandit.AdvMetaBernoulli(
+                    env = bandit.MetaAdversarial(
                         n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=n_t, horizon=HORIZON, **kwargs
                     )
                 agent_dict = _init_agents(N_EXPS, n_t, N_ARMS, HORIZON, OPT_SIZE, env, **kwargs)
@@ -635,6 +635,6 @@ def task_exp(
     else:
         setting = "Adversarial"
     title = f"{setting}: {N_ARMS} arms, horizon = {HORIZON}, and subset size = {OPT_SIZE}"
-    xlabel, ylabel = "Number of tasks", "Average Regret per task"
+    xlabel, ylabel = "Number of tasks (T)", "Average Regret per task"
     plot(X, cache_dict, title, xlabel, ylabel, **kwargs)
     return (X, cache_dict, title, xlabel, ylabel)

@@ -88,7 +88,7 @@ class Bernoulli(NoStatBernoulli):
         return copy.deepcopy(self.counter), reward, done, self.caches
 
 
-class MetaBernoulli(Bernoulli):
+class MetaStochastic(Bernoulli):
     """
     All task's optimal arms is in a sub-group
     """
@@ -127,8 +127,7 @@ class MetaBernoulli(Bernoulli):
         self.reset_task(0)
         print(f"opt_indices = {self.opt_indices}")
 
-
-class OriginalAdvMetaBernoulli(MetaBernoulli):
+class NonObliviousMetaAdversarial(MetaStochastic):
     def __init__(self, n_arms, opt_size, n_tasks, horizon, **kwargs):
         super().__init__(n_arms, opt_size, n_tasks, **kwargs)
         self.horizon = horizon
@@ -173,7 +172,7 @@ class OriginalAdvMetaBernoulli(MetaBernoulli):
         self.p_dist[self.cur_task + 1] = next_p
 
 
-class AdvMetaBernoulli(OriginalAdvMetaBernoulli):
+class MetaAdversarial(NonObliviousMetaAdversarial):
     """
     Using internal EXT_set instead of looking at the agent's EXT_set
     """
