@@ -99,7 +99,7 @@ def plot(X, regret_dict, title, xlabel, ylabel, **kwargs):
             X[:moss_max_idx],
             moss_Y[:moss_max_idx],
             moss_dY[:moss_max_idx],
-            fmt="-",
+            # fmt="-",
             color="#F28522",
             label="MOSS",
             linewidth=kwargs["linewidth"],
@@ -110,7 +110,7 @@ def plot(X, regret_dict, title, xlabel, ylabel, **kwargs):
             X[:EE_max_idx],
             EE_Y[:EE_max_idx],
             EE_dY[:EE_max_idx],
-            fmt="-",
+            # fmt="-",
             color="#009ADE",
             label="EE",
             linewidth=kwargs["linewidth"],
@@ -121,10 +121,11 @@ def plot(X, regret_dict, title, xlabel, ylabel, **kwargs):
             X[:E_BASS_max_idx],
             E_BASS_Y[:E_BASS_max_idx],
             E_BASS_dY[:E_BASS_max_idx],
-            fmt="-",
+            # fmt="-",
             color="#00CD6C",
-            label="E_BASS",
+            label="E-BASS",
             linewidth=kwargs["linewidth"],
+            linestyle=(0, (3,1,1,1,1, 1)),
         )
     if "G_BASS_FC" not in kwargs["skip_list"]:
         G_BASS_regrets, G_BASS_FC_Y, G_BASS_FC_max_idx, G_BASS_FC_dY = _get_info("G_BASS_FC", opt_moss_max_idx)
@@ -132,9 +133,9 @@ def plot(X, regret_dict, title, xlabel, ylabel, **kwargs):
             X[:G_BASS_FC_max_idx],
             G_BASS_FC_Y[:G_BASS_FC_max_idx],
             G_BASS_FC_dY[:G_BASS_FC_max_idx],
-            fmt="-",
+            # fmt="-",
             color="#AF58BA",
-            label="G_BASS_FC",
+            label="G-BASS-FC",
             linewidth=kwargs["linewidth"],
         )  # purple
     if "G_BASS" not in kwargs["skip_list"]:
@@ -143,10 +144,11 @@ def plot(X, regret_dict, title, xlabel, ylabel, **kwargs):
             X[:G_BASS_max_idx],
             G_BASS_Y[:G_BASS_max_idx],
             G_BASS_dY[:G_BASS_max_idx],
-            fmt="-",
+            # fmt="-",
             color="#FF1F5B",
-            label="G_BASS",
+            label="G-BASS",
             linewidth=kwargs["linewidth"],
+            linestyle=(0, (5, 1)),
         )  # red
     if "OG" not in kwargs["skip_list"]:
         OG_regrets, OG_Y, OG_max_idx, OG_dY = _get_info("OG", opt_moss_max_idx)
@@ -154,11 +156,24 @@ def plot(X, regret_dict, title, xlabel, ylabel, **kwargs):
             X[:OG_max_idx],
             OG_Y[:OG_max_idx],
             OG_dY[:OG_max_idx],
-            fmt="-",
+            # fmt="-",
             color="#FFC61E",
             label="OG°",
             linewidth=kwargs["linewidth"],
+            linestyle="-.",
         )  # yellow
+    if "OS_BASS" not in kwargs["skip_list"]:
+        OS_BASS_regrets, OS_BASS_Y, OS_BASS_max_idx, OS_BASS_dY = _get_info("OS_BASS", opt_moss_max_idx)
+        plt.errorbar(
+            X[:OS_BASS_max_idx],
+            OS_BASS_Y[:OS_BASS_max_idx],
+            OS_BASS_dY[:OS_BASS_max_idx],
+            # fmt="-",
+            color="#AEEA00",
+            label="OS-BASS",
+            linewidth=kwargs["linewidth"],
+            linestyle="dotted",
+        )  # lime
     if "opt_moss" not in kwargs["skip_list"]:
         opt_moss_regrets, opt_moss_Y, opt_moss_max_idx, opt_moss_dY = _get_info("opt_moss", opt_moss_max_idx)
         plt.errorbar(
@@ -182,7 +197,7 @@ def plot(X, regret_dict, title, xlabel, ylabel, **kwargs):
     else:
         setting = "Adversarial"
     if caller_name != "<module>":
-        plt.savefig(f"./results/{setting+str(kwargs['n_optimal'])}_{caller_name}_{str(time.time())}.png")
+        plt.savefig(f"./results/{setting}_{caller_name}_{str(time.time())}.png")
 
 
 def _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, env, **kwargs):
@@ -208,6 +223,9 @@ def _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, OPT_SIZE, env, **kwargs):
     if "OG" not in kwargs["skip_list"]:
         OG_agent = algos.OG(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS, subset_size=OPT_SIZE, **kwargs)
         output["OG_agent"] = OG_agent
+    if "OS_BASS" not in kwargs["skip_list"]:
+        OS_BASS_agent = algos.OS_BASS(n_arms=N_ARMS, horizon=HORIZON, n_tasks=N_TASKS, subset_size=OPT_SIZE, **kwargs)
+        output["OS_BASS_agent"] = OS_BASS_agent
     return output
 
 
@@ -219,6 +237,7 @@ def _init_cache(N_EXPS, x_axis):
     G_BASS_regrets = np.zeros((N_EXPS, x_axis)) - 1
     G_BASS_FC_regrets = np.zeros((N_EXPS, x_axis)) - 1
     OG_regrets = np.zeros((N_EXPS, x_axis)) - 1
+    OS_BASS_regrets = np.zeros((N_EXPS, x_axis)) - 1
     return {
         "moss_regrets": moss_regrets,
         "EE_regrets": EE_regrets,
@@ -227,6 +246,7 @@ def _init_cache(N_EXPS, x_axis):
         "G_BASS_regrets": G_BASS_regrets,
         "G_BASS_FC_regrets": G_BASS_FC_regrets,
         "OG_regrets": OG_regrets,
+        "OS_BASS_regrets": OS_BASS_regrets,
     }
 
 
@@ -252,6 +272,7 @@ def _store_collected_data(raw_data_dict, cache_dict, exp_type, i, j, HORIZON, N_
     cache_dict = get_info("E_BASS")
     cache_dict = get_info("G_BASS_FC")
     cache_dict = get_info("OG")
+    cache_dict = get_info("OS_BASS")
     cache_dict = get_info("EE")
     return cache_dict
 
@@ -291,6 +312,9 @@ def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, env, exp_type,
     if "OG" not in kwargs["skip_list"]:
         p_OG = _create_process("OG")
         p_OG.start()
+    if "OS_BASS" not in kwargs["skip_list"]:
+        p_OS_BASS = _create_process("OS_BASS")
+        p_OS_BASS.start()
     if "E_BASS" not in kwargs["skip_list"]:
         p_E_BASS = _create_process("E_BASS")
         p_E_BASS.start()
@@ -338,6 +362,12 @@ def _collect_data(agent_dict, cache_dict, i, j, n_tasks, HORIZON, env, exp_type,
         timer_cache["OG"] += return_dict["OG"][1]
         if OG_r is not None:
             raw_data_dict["OG_r"] = OG_r
+    if "OS_BASS" not in kwargs["skip_list"]:
+        p_OS_BASS.join()
+        OS_BASS_r = return_dict["OS_BASS"][0]
+        timer_cache["OS_BASS"] += return_dict["OS_BASS"][1]
+        if OS_BASS_r is not None:
+            raw_data_dict["OS_BASS_r"] = OS_BASS_r
     return raw_data_dict, timer_cache
 
 
@@ -365,12 +395,19 @@ def horizon_exp(
                 "G_BASS": 0,
                 "G_BASS_FC": 0,
                 "OG": 0,
+                "OS_BASS": 0,
             }
             tmp_dict = deepcopy(cache_dict)
             for j, h in enumerate(horizon_list):
-                kwargs["gap_constrain"] = min(1, np.sqrt(N_ARMS * np.log(N_TASKS) / h))
+                verify_params(N_TASKS, N_ARMS, h, OPT_SIZE, **kwargs)
+                if kwargs["gap_constrain"] is not None:
+                    kwargs["gap_constrain"] = min(1, np.sqrt(N_ARMS * np.log(N_TASKS) / h))
                 if kwargs["is_adversarial"] is False:
-                    env = bandit.MetaStochastic(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
+                    env = bandit.MetaStochastic(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=h, **kwargs)
+                elif kwargs["is_non_oblivious"] is True:
+                    env = bandit.NonObliviousMetaAdversarial(
+                        n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=h, **kwargs
+                    )
                 else:
                     env = bandit.MetaAdversarial(
                         n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=h, **kwargs
@@ -405,6 +442,8 @@ def horizon_exp(
             cache_dict["G_BASS_FC_regrets"][i] = return_dict[i]["G_BASS_FC_regrets"][i]
         if "OG" not in kwargs["skip_list"]:
             cache_dict["OG_regrets"][i] = return_dict[i]["OG_regrets"][i]
+        if "OS_BASS" not in kwargs["skip_list"]:
+            cache_dict["OS_BASS_regrets"][i] = return_dict[i]["OS_BASS_regrets"][i]
         if "E_BASS" not in kwargs["skip_list"]:
             cache_dict["E_BASS_regrets"][i] = return_dict[i]["E_BASS_regrets"][i]
 
@@ -419,7 +458,7 @@ def horizon_exp(
     return (X, cache_dict, title, xlabel, ylabel)
 
 
-def arms_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, n_arms_list=np.arange(8, 69, 15), **kwargs):
+def arms_exp(N_EXPS, N_TASKS, OPT_SIZE, HORIZON, n_arms_list=np.arange(8, 69, 15), **kwargs):
     cache_dict = _init_cache(N_EXPS, n_arms_list.shape[0])
 
     def _create_process(i):
@@ -436,12 +475,19 @@ def arms_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, n_arms_list=np.arange(8, 69, 15
                 "G_BASS": 0,
                 "G_BASS_FC": 0,
                 "OG": 0,
+                "OS_BASS": 0,
             }
             tmp_dict = deepcopy(cache_dict)
             for j, b in enumerate(n_arms_list):
-                kwargs["gap_constrain"] = min(1, np.sqrt(b * np.log(N_TASKS) / HORIZON))
+                verify_params(N_TASKS, b, HORIZON, OPT_SIZE, **kwargs)
+                if kwargs["gap_constrain"] is not None:
+                    kwargs["gap_constrain"] = min(1, np.sqrt(b * np.log(N_TASKS) / HORIZON))
                 if kwargs["is_adversarial"] is False:
-                    env = bandit.MetaStochastic(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, **kwargs)
+                    env = bandit.MetaStochastic(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
+                elif kwargs["is_non_oblivious"] is True:
+                    env = bandit.NonObliviousMetaAdversarial(
+                        n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=HORIZON, **kwargs
+                    )
                 else:
                     env = bandit.MetaAdversarial(
                         n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=HORIZON, **kwargs
@@ -476,6 +522,8 @@ def arms_exp(N_EXPS, N_TASKS, HORIZON, OPT_SIZE, n_arms_list=np.arange(8, 69, 15
             cache_dict["G_BASS_FC_regrets"][i] = return_dict[i]["G_BASS_FC_regrets"][i]
         if "OG" not in kwargs["skip_list"]:
             cache_dict["OG_regrets"][i] = return_dict[i]["OG_regrets"][i]
+        if "OS_BASS" not in kwargs["skip_list"]:
+            cache_dict["OS_BASS_regrets"][i] = return_dict[i]["OS_BASS_regrets"][i]
         if "E_BASS" not in kwargs["skip_list"]:
             cache_dict["E_BASS_regrets"][i] = return_dict[i]["E_BASS_regrets"][i]
 
@@ -509,11 +557,17 @@ def subset_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, opt_size_list=None, **kwargs):
                 "G_BASS": 0,
                 "G_BASS_FC": 0,
                 "OG": 0,
+                "OS_BASS": 0,
             }
             tmp_dict = deepcopy(cache_dict)
             for j, s in enumerate(opt_size_list):
+                verify_params(N_TASKS, N_ARMS, HORIZON, s, **kwargs)
                 if kwargs["is_adversarial"] is False:
-                    env = bandit.MetaStochastic(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, **kwargs)
+                    env = bandit.MetaStochastic(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
+                elif kwargs["is_non_oblivious"] is True:
+                    env = bandit.NonObliviousMetaAdversarial(
+                        n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, horizon=HORIZON, **kwargs
+                    )
                 else:
                     env = bandit.MetaAdversarial(n_arms=N_ARMS, opt_size=s, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
                 agent_dict = _init_agents(N_EXPS, N_TASKS, N_ARMS, HORIZON, s, env, **kwargs)
@@ -546,6 +600,8 @@ def subset_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, opt_size_list=None, **kwargs):
             cache_dict["G_BASS_FC_regrets"][i] = return_dict[i]["G_BASS_FC_regrets"][i]
         if "OG" not in kwargs["skip_list"]:
             cache_dict["OG_regrets"][i] = return_dict[i]["OG_regrets"][i]
+        if "OS_BASS" not in kwargs["skip_list"]:
+            cache_dict["OS_BASS_regrets"][i] = return_dict[i]["OS_BASS_regrets"][i]
         if "E_BASS" not in kwargs["skip_list"]:
             cache_dict["E_BASS_regrets"][i] = return_dict[i]["E_BASS_regrets"][i]
 
@@ -562,9 +618,9 @@ def subset_exp(N_EXPS, N_TASKS, N_ARMS, HORIZON, opt_size_list=None, **kwargs):
 
 def task_exp(
     N_EXPS,
-    HORIZON,
     N_ARMS,
     OPT_SIZE,
+    HORIZON,
     task_list=np.arange(600, 1002, 100),
     **kwargs,
 ):
@@ -584,12 +640,19 @@ def task_exp(
                 "G_BASS": 0,
                 "G_BASS_FC": 0,
                 "OG": 0,
+                "OS_BASS": 0,
             }
             tmp_dict = deepcopy(cache_dict)
             for j, n_t in enumerate(task_list):
-                kwargs["gap_constrain"] = min(1, np.sqrt(N_ARMS * np.log(n_t) / HORIZON))
+                verify_params(n_t, N_ARMS, HORIZON, OPT_SIZE, **kwargs)
+                if kwargs["gap_constrain"] is not None:
+                    kwargs["gap_constrain"] = min(1, np.sqrt(N_ARMS * np.log(n_t) / HORIZON))
                 if kwargs["is_adversarial"] is False:
-                    env = bandit.MetaStochastic(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=n_t, **kwargs)
+                    env = bandit.MetaStochastic(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=n_t, horizon=HORIZON, **kwargs)
+                elif kwargs["is_non_oblivious"] is True:
+                    env = bandit.NonObliviousMetaAdversarial(
+                        n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=n_t, horizon=HORIZON, **kwargs
+                    )
                 else:
                     env = bandit.MetaAdversarial(
                         n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=n_t, horizon=HORIZON, **kwargs
@@ -624,6 +687,8 @@ def task_exp(
             cache_dict["G_BASS_FC_regrets"][i] = return_dict[i]["G_BASS_FC_regrets"][i]
         if "OG" not in kwargs["skip_list"]:
             cache_dict["OG_regrets"][i] = return_dict[i]["OG_regrets"][i]
+        if "OS_BASS" not in kwargs["skip_list"]:
+            cache_dict["OS_BASS_regrets"][i] = return_dict[i]["OS_BASS_regrets"][i]
         if "E_BASS" not in kwargs["skip_list"]:
             cache_dict["E_BASS_regrets"][i] = return_dict[i]["E_BASS_regrets"][i]
 
@@ -636,3 +701,24 @@ def task_exp(
     xlabel, ylabel = "Number of tasks (T)", "Average Regret per task"
     plot(X, cache_dict, title, xlabel, ylabel, **kwargs)
     return (X, cache_dict, title, xlabel, ylabel)
+
+def verify_params(n_tasks, n_arms, tau, subset_size, **kwargs):
+    if tau >= subset_size*n_tasks**(2/3)/n_arms**(2/3):
+        assert n_tasks >= subset_size**1.2*(tau*n_tasks)**0.3/n_arms**0.3, "tau < T: condition not satisfied. n_tasks < subset_size**(6/5)*horizon**(3/10)/n_arms**(3/10)"
+        print("tau < T")
+    else:
+        assert n_tasks >= n_arms**0.4*tau**0.6/subset_size**0.6, "tau = T: condition not satisfied. n_tasks >= n_arms**0.4*horizon**0.6/subset_size**0.6"
+        assert n_arms >= subset_size**3, "tau = T: condition not satisfied. n_arms >= subset_size**3"
+        print("tau = T")
+    assert n_arms<=tau, f"The number of arm ({n_arms}) must be smaller than the horizon ({tau})"
+    assert subset_size<=n_arms and subset_size>1, f"The subset size ({subset_size}) must be smaller than the number of arm ({n_arms}) and >1"
+    PE_params = 4*np.log(max(np.exp(1), n_arms*tau/4))
+    if n_arms*PE_params > tau:
+        print(f"WARNING (Phased Elimination): phase 1 duration ({n_arms*PE_params}) is larger than the horizon ({tau}) \n=> increase horizon and/or change n_arms.")
+    if "OG" not in kwargs['skip_list']:
+        og_gamma = kwargs['OG_scale']*subset_size*(1+np.log(n_tasks))*(n_arms*np.log(n_arms)/n_tasks)**(1/3)
+        if og_gamma<0 or og_gamma>1:
+            print(f"WARNING (OG baseline): og_gamma ({og_gamma}) must in range [0,1]. Decrease # of arms and subset size or Increase # of task")
+
+
+

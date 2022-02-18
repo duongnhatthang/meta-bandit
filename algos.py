@@ -2,6 +2,7 @@ from itertools import combinations
 
 import numpy as np
 from scipy.special import comb, softmax
+import utils
 
 
 class MOSS:
@@ -452,7 +453,7 @@ class OG:
             self.expert_list.append(Exp3(n_arms, n_tasks, is_full_info=True))
         self.gamma = kwargs["OG_scale"] * self.M_prime * (n_arms * np.log(n_arms) / n_tasks) ** (1 / 3)
         if self.gamma > 1 or self.gamma < 0:
-            print(self.gamma)
+            print(f"OG gamma: {self.gamma}")
             self.gamma = 1
         self.find_EXT_set()
         self.tracking_stats = None
@@ -461,12 +462,12 @@ class OG:
         pass
 
     def find_EXT_set(self):
-        self.is_select_expert = bool(np.random.choice(2, p=[1 - self.gamma, self.gamma]))
+        self.is_select_expert = bool(np.random.choice(2, p=[1 - self.gamma, self.gamma])) # Equivalance to EXR
         self.meta_action = np.zeros((self.M_prime,)) - 1
         tmp_list = []
         for i in range(self.M_prime):
             a_i = self.expert_list[i].get_action(None)
-            if a_i in tmp_list:
+            while a_i in tmp_list:
                 a_i = np.random.choice(self.n_arms)
             tmp_list.append(a_i)
             self.meta_action[i] = a_i
@@ -493,3 +494,57 @@ class OG:
             exp_rewards[self.cur_a] = moss_avr_reward
             self.expert_list[self.cur_t - 1].update(None, exp_rewards)
         self.find_EXT_set()
+
+
+class OS_BASS(OG):
+
+    def __init__(self, n_arms, horizon, n_tasks, subset_size, **kwargs):
+        self.n_arms = n_arms
+        self.horizon = horizon
+        self.n_tasks = n_tasks
+        self.subset_size = subset_size
+        self.EXT_set = None  # placeholder/dummy var
+        self.M_prime = subset_size
+        self.expert_list = []
+        for i in range(self.M_prime):
+            self.expert_list.append(Exp3(n_arms, n_tasks, is_full_info=True))
+
+        if horizon >= subset_size*n_tasks**(2/3)/n_arms**(2/3):
+            self.tau_prime = int(3*subset_size**0.6*(horizon*n_tasks)**0.4/n_arms**0.4)-1
+            self.gamma =  (3*np.log(n_arms))**0.5*subset_size**0.3 / (2*n_arms**1.2*(n_tasks*horizon)**0.3)
+        else:
+            self.tau_prime = horizon
+            self.gamma = (np.log(n_arms)**0.5 / (2*n_arms*n_tasks**0.5)) ** (1 / 3)
+        print(f"OS_BASS: self.tau_prime = {self.tau_prime}, self.gamma = {self.gamma}")
+        self.find_EXT_set()
+        self.tracking_stats = None
+        
+        if self.gamma > 1 or self.gamma < 0:
+            print(f"OS_BASS gamma: {self.gamma}")
+            self.gamma = 1
+        self.cur_step = 0
+        self.prev_mu = 0
+        self.prev_T = 0
+
+    def tau_prime_eps_end_update(self, obs):  # update the tracking_stats after each rolls-out
+        if self.is_select_expert is True:
+            mu = self.tracking_stats[::2] - self.prev_mu
+            T = self.tracking_stats[1::2] - self.prev_T
+            moss_avr_reward = np.sum(mu * T) / (np.sum(T))
+            exp_rewards = np.zeros((self.n_arms,))
+            exp_rewards[self.cur_a] = moss_avr_reward
+            self.expert_list[self.cur_t - 1].update(None, exp_rewards)
+            self.prev_mu = self.tracking_stats[::2]
+            self.prev_T = self.tracking_stats[1::2]
+        self.find_EXT_set()
+
+    def eps_end_update(self, obs):  # update the tracking_stats after each rolls-out
+        self.tau_prime_eps_end_update(None)
+        self.cur_step = 0
+        self.prev_mu = 0
+        self.prev_T = 0
+
+    def update(self, action, reward):
+        self.cur_step +=1
+        if self.cur_step % self.tau_prime == 0:
+            self.tau_prime_eps_end_update(None)
