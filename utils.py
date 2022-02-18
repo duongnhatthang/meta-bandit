@@ -719,3 +719,4 @@ def verify_params(n_tasks, n_arms, tau, subset_size, **kwargs):
         og_gamma = kwargs['OG_scale']*subset_size*(1+np.log(n_tasks))*(n_arms*np.log(n_arms)/n_tasks)**(1/3)
         if og_gamma<0 or og_gamma>1:
             print(f"WARNING (OG baseline): og_gamma ({og_gamma}) must in range [0,1]. Decrease # of arms and subset size or Increase # of task")
+
