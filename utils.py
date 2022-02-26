@@ -10,7 +10,7 @@ import numpy as np
 from tqdm import trange
 
 
-TASK_EXP = 0  # Stochastic
+TASK_EXP = 0
 HORIZON_EXP = 1
 ARM_EXP = 2
 SUBSET_EXP = 3
@@ -707,7 +707,7 @@ def verify_params(n_tasks, n_arms, tau, subset_size, **kwargs):
     assert subset_size<=n_arms and subset_size>1, f"The subset size ({subset_size}) must be smaller than the number of arm ({n_arms}) and >1"
     m_i = 16*np.log(n_tasks)
     if n_arms*m_i > tau:
-        print(f"WARNING (Phased Elimination): phase 1 duration ({n_arms*m_i}) is larger than the horizon ({tau}) \n=> increase horizon, decrease n_arms or/and n_tasks.")
+        print(f"verify_params WARNING (Phased Elimination): phase 1 duration ({n_arms*m_i}) is larger than the horizon ({tau}) \n=> increase horizon, decrease n_arms or/and n_tasks.")
     if "OG" not in kwargs['skip_list']:
         og_gamma = kwargs['OG_scale']*subset_size*(1+np.log(n_tasks))*(n_arms*np.log(n_arms)/n_tasks)**(1/3)
         if og_gamma<0 or og_gamma>1:

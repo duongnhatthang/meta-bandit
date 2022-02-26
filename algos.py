@@ -54,7 +54,7 @@ class PhaseElim:
         self.min_index = min_index
         if self.n_arms * self._get_ml() > self.horizon:
             print(
-                f"WARNING (Phased Elimination): phase 1 duration ({self.n_arms*self._get_ml()}) is larger than the horizon ({self.horizon}) => increase horizon and/or change n_arms."
+                f"PhaseElim WARNING (Phased Elimination): phase 1 duration ({self.n_arms*self._get_ml()}) is larger than the horizon ({self.horizon}) => increase horizon and/or change n_arms."
             )
 
     def reset(self):
@@ -532,12 +532,6 @@ class OS_BASS(OG):
             self.tau_prime = horizon
             print(f"OS_BASS tau' = tau ({horizon}) setting")
             self.gamma = 2**(-2/3)*(np.log(n_arms) / n_tasks) ** (1 / 3)
-        # if horizon >= subset_size*n_tasks**(2/3)/n_arms**(2/3):
-        #     self.tau_prime = int(3*subset_size**0.6*(horizon*n_tasks)**0.4/n_arms**0.4)-1
-        #     self.gamma =  (3*np.log(n_arms))**0.5*subset_size**0.3 / (2*n_arms**1.2*(n_tasks*horizon)**0.3)
-        # else:
-        #     self.tau_prime = horizon
-        #     self.gamma = (np.log(n_arms)**0.5 / (2*n_arms*n_tasks**0.5)) ** (1 / 3)
         print(f"OS_BASS: self.tau_prime = {self.tau_prime}, self.gamma = {self.gamma}. If gamma > 1, capped at 1.") # For debug
         self.gamma = min(1, self.gamma)
         self.find_EXT_set()
