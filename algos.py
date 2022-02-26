@@ -2,7 +2,6 @@ from itertools import combinations
 
 import numpy as np
 from scipy.special import comb, softmax
-import utils
 
 
 class MOSS:
@@ -104,11 +103,7 @@ class PhaseElimMod(PhaseElim):
         super().__init__(n_arms, horizon, C, min_index)
 
     def _get_ml(self):
-        return round(
-            self.C * 4
-            * 2 ** (2 * self.cur_l)
-            * np.log(self.n_tasks)
-        )
+        return round(self.C * 4 * 2 ** (2 * self.cur_l) * np.log(self.n_tasks))
 
 
 class EE:
@@ -464,7 +459,7 @@ class OG:
         self.expert_list = []
         for i in range(self.M_prime):
             self.expert_list.append(Exp3(n_arms, n_tasks, is_full_info=True))
-        self.gamma = kwargs["OG_scale"] * 2**(-2/3)*self.M_prime * (n_arms * np.log(n_arms) / n_tasks) ** (1 / 3)
+        self.gamma = kwargs["OG_scale"] * 2 ** (-2 / 3) * self.M_prime * (n_arms * np.log(n_arms) / n_tasks) ** (1 / 3)
         if self.gamma > 1 or self.gamma < 0:
             print(f"OG gamma: {self.gamma}")
             self.gamma = 1
@@ -475,7 +470,7 @@ class OG:
         pass
 
     def find_EXT_set(self):
-        self.is_select_expert = bool(np.random.choice(2, p=[1 - self.gamma, self.gamma])) # Equivalance to EXR
+        self.is_select_expert = bool(np.random.choice(2, p=[1 - self.gamma, self.gamma]))  # Equivalance to EXR
         self.meta_action = np.zeros((self.M_prime,)) - 1
         tmp_list = []
         for i in range(self.M_prime):
@@ -511,8 +506,7 @@ class OG:
 
 
 class OS_BASS(OG):
-
-    def __init__(self, n_arms, horizon, n_tasks, subset_size, tuning_hyper_params = 1.5, **kwargs):
+    def __init__(self, n_arms, horizon, n_tasks, subset_size, tuning_hyper_params=1.5, **kwargs):
         self.n_arms = n_arms
         self.horizon = horizon
         self.n_tasks = n_tasks
@@ -523,20 +517,27 @@ class OS_BASS(OG):
         for i in range(self.M_prime):
             self.expert_list.append(Exp3(n_arms, n_tasks, is_full_info=True))
 
-        max_tau_prime = tuning_hyper_params**(5/3)*subset_size*n_tasks**(2/3)/np.log(n_arms)**(2/3)
-        if horizon >= max_tau_prime: # Theorem 3.2
-            self.tau_prime = min(horizon, int(tuning_hyper_params*subset_size**0.6*(horizon*n_tasks)**0.4/np.log(n_arms)**0.4))
-            self.gamma = 2**(-2/3)*(np.log(n_arms)*self.tau_prime / (n_tasks*horizon)) ** (1 / 3)
-            print(f"OS_BASS tau'({int(tuning_hyper_params*subset_size**0.6*(horizon*n_tasks)**0.4/np.log(n_arms)**0.4)}) < tau ({horizon}) setting")
+        max_tau_prime = tuning_hyper_params ** (5 / 3) * subset_size * n_tasks ** (2 / 3) / np.log(n_arms) ** (2 / 3)
+        if horizon >= max_tau_prime:  # Theorem 3.2
+            self.tau_prime = min(
+                horizon,
+                int(tuning_hyper_params * subset_size**0.6 * (horizon * n_tasks) ** 0.4 / np.log(n_arms) ** 0.4),
+            )
+            self.gamma = 2 ** (-2 / 3) * (np.log(n_arms) * self.tau_prime / (n_tasks * horizon)) ** (1 / 3)
+            print(
+                f"OS_BASS tau'({int(tuning_hyper_params*subset_size**0.6*(horizon*n_tasks)**0.4/np.log(n_arms)**0.4)}) < tau ({horizon}) setting"
+            )
         else:
             self.tau_prime = horizon
             print(f"OS_BASS tau' = tau ({horizon}) setting")
-            self.gamma = 2**(-2/3)*(np.log(n_arms) / n_tasks) ** (1 / 3)
-        print(f"OS_BASS: self.tau_prime = {self.tau_prime}, self.gamma = {self.gamma}. If gamma > 1, capped at 1.") # For debug
+            self.gamma = 2 ** (-2 / 3) * (np.log(n_arms) / n_tasks) ** (1 / 3)
+        print(
+            f"OS_BASS: self.tau_prime = {self.tau_prime}, self.gamma = {self.gamma}. If gamma > 1, capped at 1."
+        )  # For debug
         self.gamma = min(1, self.gamma)
         self.find_EXT_set()
         self.tracking_stats = None
-        
+
         if self.gamma > 1 or self.gamma < 0:
             print(f"OS_BASS gamma: {self.gamma}")
             self.gamma = 1
@@ -564,6 +565,6 @@ class OS_BASS(OG):
         self.prev_T = 0
 
     def update(self, action, reward):
-        self.cur_step +=1
+        self.cur_step += 1
         if self.cur_step % self.tau_prime == 0:
             self.tau_prime_eps_end_update(None)

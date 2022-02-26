@@ -119,19 +119,23 @@ class MetaStochastic(Bernoulli):
                 if len(list(set(opt_indices.tolist()))) == opt_size:
                     break
             temp = np.random.uniform(high=opt_values - low, size=(n_arms, n_tasks))
-            if self.gap_constrain is None: # force violate gap threshold
-                GAP_THRESHOLD = np.sqrt(self.n_arms*np.log(self.n_tasks)/self.horizon)
-                second_best_arms = np.random.uniform(low=opt_values - GAP_THRESHOLD, high=opt_values, size=(1, n_tasks))
-                second_best_arms[np.where(second_best_arms<0)] = 0
-                second_best_arms_idx = np.random.randint(n_arms, size=n_tasks) # some value can be duplicate with opt_indices, but doesn't matter
-                for i in range(n_tasks): #TODO: slow
+            if self.gap_constrain is None:  # force violate gap threshold
+                GAP_THRESHOLD = np.sqrt(self.n_arms * np.log(self.n_tasks) / self.horizon)
+                second_best_arms = np.random.uniform(
+                    low=opt_values - GAP_THRESHOLD, high=opt_values, size=(1, n_tasks)
+                )
+                second_best_arms[np.where(second_best_arms < 0)] = 0
+                second_best_arms_idx = np.random.randint(
+                    n_arms, size=n_tasks
+                )  # some value can be duplicate with opt_indices, but doesn't matter
+                for i in range(n_tasks):  # TODO: slow
                     temp[second_best_arms_idx[i]][i] = second_best_arms[0][i]
             self.p_dist = temp.T
             self.p_dist[np.arange(n_tasks), opt_indices] = opt_values
             if np.max(opt_values) > 0:
                 break
         self.reset_task(0)
-        if kwargs['quiet'] == False:
+        if kwargs["quiet"] is False:
             print(f"opt_indices = {self.opt_indices}")
 
 
@@ -166,17 +170,16 @@ class NonObliviousMetaAdversarial(MetaStochastic):
         if self.gap_constrain is not None:
             low = self.gap_constrain
         opt_values = np.random.uniform(low=low)
-        if self.gap_constrain is None: # force violate gap threshold
-            GAP_THRESHOLD = np.sqrt(self.n_arms*np.log(self.n_tasks)/self.horizon)
+        if self.gap_constrain is None:  # force violate gap threshold
+            GAP_THRESHOLD = np.sqrt(self.n_arms * np.log(self.n_tasks) / self.horizon)
             while True:
                 next_p = np.random.uniform(high=opt_values - low, size=(self.n_arms,))
                 next_p[opt_arm] = 0
                 if opt_values - GAP_THRESHOLD < max(next_p):
-                    break                
+                    break
         else:
             next_p = np.random.uniform(high=opt_values - low, size=(self.n_arms,))
         next_p[opt_arm] = opt_values
-        opt_list = [opt_arm]
         self.p_dist[self.cur_task + 1] = next_p
 
 
