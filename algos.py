@@ -53,7 +53,7 @@ class PhaseElim:
         self.min_index = min_index
         if self.n_arms * self._get_ml() > self.horizon:
             print(
-                f"WARNING (Phased Elimination): phase 1 duration ({self.n_arms*self._get_ml()}) is larger than the horizon ({self.horizon}) => increase horizon and/or change n_arms."
+                f"PhaseElim WARNING (Phased Elimination): phase 1 duration ({self.n_arms*self._get_ml()}) is larger than the horizon ({self.horizon}) => increase horizon and/or change n_arms."
             )
 
     def reset(self):
@@ -97,6 +97,15 @@ class PhaseElim:
         self.cur_mu[action] += reward / self._get_ml()
 
 
+class PhaseElimMod(PhaseElim):
+    def __init__(self, n_arms, horizon, n_tasks, C=1, min_index=-1000):
+        self.n_tasks = n_tasks
+        super().__init__(n_arms, horizon, C, min_index)
+
+    def _get_ml(self):
+        return round(self.C * 4 * 2 ** (2 * self.cur_l) * np.log(self.n_tasks))
+
+
 class EE:
     """
     Exploration-Exploitation algorithm:
@@ -110,7 +119,7 @@ class EE:
         self.n_arms = n_arms
         self.horizon = horizon
         self.n_tasks = n_tasks
-        self.PE_algo = PhaseElim(n_arms, horizon, C, min_index)
+        self.PE_algo = PhaseElimMod(n_arms, horizon, n_tasks, C, min_index)
         self.reset()
         self.MOSS_algo = MOSS(self.n_arms, self.horizon)
         self.subset_size = subset_size
@@ -177,7 +186,7 @@ class E_BASS_EWA:
         self.learning_rate = self._default_learning_rate()
         self.tracking_stats = np.zeros((self.n_experts + 1,))  # Last expert is EXR
         self.tracking_stats[-1] = 1
-        self.PE_algo = PhaseElim(n_arms, horizon, C, min_index)
+        self.PE_algo = PhaseElimMod(n_arms, horizon, n_tasks, C, min_index)
         self.reset()
         self.exr_prob = self.get_EXR_prob()
         assert (
@@ -309,7 +318,7 @@ class G_BASS:
         self.EXT_set = []
         self.is_explore = None
         self.cur_task = 0
-        self.PE_algo = PhaseElim(n_arms, horizon, C, min_index)
+        self.PE_algo = PhaseElimMod(n_arms, horizon, n_tasks, C, min_index)
         self.reset()
         self.select_alg()
 
@@ -450,9 +459,9 @@ class OG:
         self.expert_list = []
         for i in range(self.M_prime):
             self.expert_list.append(Exp3(n_arms, n_tasks, is_full_info=True))
-        self.gamma = kwargs["OG_scale"] * self.M_prime * (n_arms * np.log(n_arms) / n_tasks) ** (1 / 3)
+        self.gamma = kwargs["OG_scale"] * 2 ** (-2 / 3) * self.M_prime * (n_arms * np.log(n_arms) / n_tasks) ** (1 / 3)
         if self.gamma > 1 or self.gamma < 0:
-            print(self.gamma)
+            print(f"OG gamma: {self.gamma}")
             self.gamma = 1
         self.find_EXT_set()
         self.tracking_stats = None
@@ -461,12 +470,12 @@ class OG:
         pass
 
     def find_EXT_set(self):
-        self.is_select_expert = bool(np.random.choice(2, p=[1 - self.gamma, self.gamma]))
+        self.is_select_expert = bool(np.random.choice(2, p=[1 - self.gamma, self.gamma]))  # Equivalance to EXR
         self.meta_action = np.zeros((self.M_prime,)) - 1
         tmp_list = []
         for i in range(self.M_prime):
             a_i = self.expert_list[i].get_action(None)
-            if a_i in tmp_list:
+            while a_i in tmp_list:
                 a_i = np.random.choice(self.n_arms)
             tmp_list.append(a_i)
             self.meta_action[i] = a_i
@@ -488,8 +497,74 @@ class OG:
         if self.is_select_expert is True:
             mu = self.tracking_stats[::2]
             T = self.tracking_stats[1::2]
+            T[T == 0] = 1e-6
             moss_avr_reward = np.sum(mu * T) / (np.sum(T))
             exp_rewards = np.zeros((self.n_arms,))
             exp_rewards[self.cur_a] = moss_avr_reward
             self.expert_list[self.cur_t - 1].update(None, exp_rewards)
         self.find_EXT_set()
+
+
+class OS_BASS(OG):
+    def __init__(self, n_arms, horizon, n_tasks, subset_size, tuning_hyper_params=1.5, **kwargs):
+        self.n_arms = n_arms
+        self.horizon = horizon
+        self.n_tasks = n_tasks
+        self.subset_size = subset_size
+        self.EXT_set = None  # placeholder/dummy var
+        self.M_prime = subset_size
+        self.expert_list = []
+        for i in range(self.M_prime):
+            self.expert_list.append(Exp3(n_arms, n_tasks, is_full_info=True))
+
+        max_tau_prime = tuning_hyper_params ** (5 / 3) * subset_size * n_tasks ** (2 / 3) / np.log(n_arms) ** (2 / 3)
+        if horizon >= max_tau_prime:  # Theorem 3.2
+            self.tau_prime = min(
+                horizon,
+                int(tuning_hyper_params * subset_size**0.6 * (horizon * n_tasks) ** 0.4 / np.log(n_arms) ** 0.4),
+            )
+            self.gamma = 2 ** (-2 / 3) * (np.log(n_arms) * self.tau_prime / (n_tasks * horizon)) ** (1 / 3)
+            print(
+                f"OS_BASS tau'({int(tuning_hyper_params*subset_size**0.6*(horizon*n_tasks)**0.4/np.log(n_arms)**0.4)}) < tau ({horizon}) setting"
+            )
+        else:
+            self.tau_prime = horizon
+            print(f"OS_BASS tau' = tau ({horizon}) setting")
+            self.gamma = 2 ** (-2 / 3) * (np.log(n_arms) / n_tasks) ** (1 / 3)
+        print(
+            f"OS_BASS: self.tau_prime = {self.tau_prime}, self.gamma = {self.gamma}. If gamma > 1, capped at 1."
+        )  # For debug
+        self.gamma = min(1, self.gamma)
+        self.find_EXT_set()
+        self.tracking_stats = None
+
+        if self.gamma > 1 or self.gamma < 0:
+            print(f"OS_BASS gamma: {self.gamma}")
+            self.gamma = 1
+        self.cur_step = 0
+        self.prev_mu = 0
+        self.prev_T = 0
+
+    def tau_prime_eps_end_update(self, obs):  # update the tracking_stats after each rolls-out
+        if self.is_select_expert is True:
+            mu = self.tracking_stats[::2] - self.prev_mu
+            T = self.tracking_stats[1::2] - self.prev_T
+            T[T == 0] = 1e-6
+            moss_avr_reward = np.sum(mu * T) / (np.sum(T))
+            exp_rewards = np.zeros((self.n_arms,))
+            exp_rewards[self.cur_a] = moss_avr_reward
+            self.expert_list[self.cur_t - 1].update(None, exp_rewards)
+            self.prev_mu = self.tracking_stats[::2]
+            self.prev_T = self.tracking_stats[1::2]
+        self.find_EXT_set()
+
+    def eps_end_update(self, obs):  # update the tracking_stats after each rolls-out
+        self.tau_prime_eps_end_update(None)
+        self.cur_step = 0
+        self.prev_mu = 0
+        self.prev_T = 0
+
+    def update(self, action, reward):
+        self.cur_step += 1
+        if self.cur_step % self.tau_prime == 0:
+            self.tau_prime_eps_end_update(None)

@@ -43,7 +43,7 @@ def task_exp(args, extra_args):
     pickle.dump(
         regret_dict,
         open(
-            os.path.join(args.cacheDir, setting + str(extra_args["n_optimal"]) + "_tasks_" + str(time.time()) + ".p"),
+            os.path.join(args.cacheDir, setting + "_tasks_" + str(time.time()) + ".p"),
             "wb",
         ),
     )
@@ -72,9 +72,7 @@ def horizon_exp(args, extra_args):
     pickle.dump(
         regret_dict_h,
         open(
-            os.path.join(
-                args.cacheDir, setting + str(extra_args["n_optimal"]) + "_horizon_" + str(time.time()) + ".p"
-            ),
+            os.path.join(args.cacheDir, setting + "_horizon_" + str(time.time()) + ".p"),
             "wb",
         ),
     )
@@ -105,7 +103,7 @@ def subset_exp(args, extra_args):
     pickle.dump(
         regret_dict_e,
         open(
-            os.path.join(args.cacheDir, setting + str(extra_args["n_optimal"]) + "_subset_" + str(time.time()) + ".p"),
+            os.path.join(args.cacheDir, setting + "_subset_" + str(time.time()) + ".p"),
             "wb",
         ),
     )
@@ -134,7 +132,7 @@ def arms_exp(args, extra_args):
     pickle.dump(
         regret_dict_b,
         open(
-            os.path.join(args.cacheDir, setting + str(extra_args["n_optimal"]) + "_arms_" + str(time.time()) + ".p"),
+            os.path.join(args.cacheDir, setting + "_arms_" + str(time.time()) + ".p"),
             "wb",
         ),
     )
@@ -203,8 +201,7 @@ if __name__ == "__main__":
         ],
         "linewidth": 4,
         "plot_legend": True,
-        "OG_scale": 0.008,
-        "n_optimal": 2,
+        "OG_scale": 1,  # 0.008,
     }
     tik = time.time()
     if args.exp == "task":
