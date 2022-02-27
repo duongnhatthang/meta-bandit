@@ -11,6 +11,8 @@
 **Arms Experiment**             |  **Subset Experiment**
 ![](https://github.com/duongnhatthang/meta-bandit/blob/main/results/cache_arms.png)  |  ![](https://github.com/duongnhatthang/meta-bandit/blob/main/results/cache_subset.png)
 
+![](https://github.com/duongnhatthang/meta-bandit/blob/main/results/legend5.png)
+
 Details of the algorithm and the experimental settings can be found in our following paper (update link later):
 
 
