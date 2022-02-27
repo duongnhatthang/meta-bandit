@@ -125,7 +125,7 @@ def plot(X, regret_dict, title, xlabel, ylabel, **kwargs):
             color="#00CD6C",
             label="E-BASS",
             linewidth=kwargs["linewidth"],
-            linestyle=(0, (3,1,1,1,1, 1)),
+            linestyle=(0, (3, 1, 1, 1, 1, 1)),
         )
     if "G_BASS_FC" not in kwargs["skip_list"]:
         G_BASS_regrets, G_BASS_FC_Y, G_BASS_FC_max_idx, G_BASS_FC_dY = _get_info("G_BASS_FC", opt_moss_max_idx)
@@ -483,7 +483,9 @@ def arms_exp(N_EXPS, N_TASKS, OPT_SIZE, HORIZON, n_arms_list=np.arange(8, 69, 15
                 if kwargs["gap_constrain"] is not None:
                     kwargs["gap_constrain"] = min(1, np.sqrt(b * np.log(N_TASKS) / HORIZON))
                 if kwargs["is_adversarial"] is False:
-                    env = bandit.MetaStochastic(n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=HORIZON, **kwargs)
+                    env = bandit.MetaStochastic(
+                        n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=HORIZON, **kwargs
+                    )
                 elif kwargs["is_non_oblivious"] is True:
                     env = bandit.NonObliviousMetaAdversarial(
                         n_arms=b, opt_size=OPT_SIZE, n_tasks=N_TASKS, horizon=HORIZON, **kwargs
@@ -648,7 +650,9 @@ def task_exp(
                 if kwargs["gap_constrain"] is not None:
                     kwargs["gap_constrain"] = min(1, np.sqrt(N_ARMS * np.log(n_t) / HORIZON))
                 if kwargs["is_adversarial"] is False:
-                    env = bandit.MetaStochastic(n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=n_t, horizon=HORIZON, **kwargs)
+                    env = bandit.MetaStochastic(
+                        n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=n_t, horizon=HORIZON, **kwargs
+                    )
                 elif kwargs["is_non_oblivious"] is True:
                     env = bandit.NonObliviousMetaAdversarial(
                         n_arms=N_ARMS, opt_size=OPT_SIZE, n_tasks=n_t, horizon=HORIZON, **kwargs
@@ -702,13 +706,20 @@ def task_exp(
     plot(X, cache_dict, title, xlabel, ylabel, **kwargs)
     return (X, cache_dict, title, xlabel, ylabel)
 
+
 def verify_params(n_tasks, n_arms, tau, subset_size, **kwargs):
-    assert n_arms<=tau, f"The number of arm ({n_arms}) must be smaller than the horizon ({tau})"
-    assert subset_size<=n_arms and subset_size>1, f"The subset size ({subset_size}) must be smaller than the number of arm ({n_arms}) and >1"
-    m_i = 16*np.log(n_tasks)
-    if n_arms*m_i > tau:
-        print(f"verify_params WARNING (Phased Elimination): phase 1 duration ({n_arms*m_i}) is larger than the horizon ({tau}) \n=> increase horizon, decrease n_arms or/and n_tasks.")
-    if "OG" not in kwargs['skip_list']:
-        og_gamma = kwargs['OG_scale']*subset_size*(1+np.log(n_tasks))*(n_arms*np.log(n_arms)/n_tasks)**(1/3)
-        if og_gamma<0 or og_gamma>1:
+    assert n_arms <= tau, f"The number of arm ({n_arms}) must be smaller than the horizon ({tau})"
+    assert (
+        subset_size <= n_arms and subset_size > 1
+    ), f"The subset size ({subset_size}) must be smaller than the number of arm ({n_arms}) and >1"
+    m_i = 16 * np.log(n_tasks)
+    if n_arms * m_i > tau:
+        print(
+            f"verify_params WARNING (Phased Elimination): phase 1 duration ({n_arms*m_i}) is larger than the horizon ({tau}) \n=> increase horizon, decrease n_arms or/and n_tasks."
+        )
+    if "OG" not in kwargs["skip_list"]:
+        og_gamma = (
+            kwargs["OG_scale"] * subset_size * (1 + np.log(n_tasks)) * (n_arms * np.log(n_arms) / n_tasks) ** (1 / 3)
+        )
+        if og_gamma < 0 or og_gamma > 1:
             print(f"WARNING (OG baseline): og_gamma ({og_gamma}) must in range [0,1]. Capped at 1.")

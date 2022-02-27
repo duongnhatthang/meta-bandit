@@ -72,9 +72,7 @@ def horizon_exp(args, extra_args):
     pickle.dump(
         regret_dict_h,
         open(
-            os.path.join(
-                args.cacheDir, setting + "_horizon_" + str(time.time()) + ".p"
-            ),
+            os.path.join(args.cacheDir, setting + "_horizon_" + str(time.time()) + ".p"),
             "wb",
         ),
     )
@@ -203,7 +201,7 @@ if __name__ == "__main__":
         ],
         "linewidth": 4,
         "plot_legend": True,
-        "OG_scale": 1, #0.008,
+        "OG_scale": 1,  # 0.008,
     }
     tik = time.time()
     if args.exp == "task":
