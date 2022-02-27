@@ -20,7 +20,7 @@ Details of the algorithm and the experimental settings can be found in our follo
     title     = {{Non-stationary Bandits and Meta-Learning with a Small Set of Optimal Arms}},
     author    = {MohammadJavad Azizi, Thang Duong, Yasin Abbasi-Yadkori, Andras Gyorgy, Claire Vernade and Mohammad Ghavamzadeh},
     booktitle = {Update later},
-    year      = {2021}
+    year      = {2022}
     }
 
 **Please CITE** our paper whenever this repository is used to help produce published results or incorporated into other software.
