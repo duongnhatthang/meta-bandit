@@ -5,11 +5,11 @@
 
 ## Experiment results:
 
-**Task Experiment**             |  **Horizon Experiment**
+**Task Experiment**             |  **Small Gap Task Experiment**
 :-------------------------:|:-------------------------:
-![](https://github.com/duongnhatthang/meta-bandit/blob/main/results/cache_tasks.png)  |  ![](https://github.com/duongnhatthang/meta-bandit/blob/main/results/cache_horizon.png)
-**Arms Experiment**             |  **Subset Experiment**
-![](https://github.com/duongnhatthang/meta-bandit/blob/main/results/cache_arms.png)  |  ![](https://github.com/duongnhatthang/meta-bandit/blob/main/results/cache_subset.png)
+![](https://github.com/duongnhatthang/meta-bandit/blob/main/results/cache_tasks.png)  |  ![](https://github.com/duongnhatthang/meta-bandit/blob/main/results/cache_no_assumption_task.png)
+**Subset Experiment**             |  **Small Gap Subset Experiment**
+![](https://github.com/duongnhatthang/meta-bandit/blob/main/results/cache_subset.png)  |  ![](https://github.com/duongnhatthang/meta-bandit/blob/main/results/cache_no_assumption_subset.png)
 
 ![](https://github.com/duongnhatthang/meta-bandit/blob/main/results/legend5.png)
 
