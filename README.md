@@ -35,7 +35,7 @@ Details of the algorithm and the experimental settings can be found in our follo
     ```
 
 ## Evaluation 
- -  Interactive [Notebook](https://github.com/duongnhatthang/meta-bandit/blob/main/main.ipynb), or
+ -  [Recommended] Interactive [Notebook](https://github.com/duongnhatthang/meta-bandit/blob/main/main.ipynb), or
  -  Using script and check the outputs in `\results`:
 
     ```
