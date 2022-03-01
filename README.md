@@ -13,7 +13,7 @@
 
 ![](https://github.com/duongnhatthang/meta-bandit/blob/main/results/legend5.png)
 
-Details of the algorithm and the experimental settings can be found in our following paper (update link later):
+Details of the algorithm and the experimental settings can be found in our following [paper](https://arxiv.org/abs/2202.13001):
 
 
     @misc{azizi2022nonstationary,
@@ -25,7 +25,7 @@ Details of the algorithm and the experimental settings can be found in our follo
       primaryClass={cs.LG}
       }
 
-**Please CITE** our paper whenever this repository is used to help produce published results or incorporated into other software.
+**Please CITE** our [paper](https://arxiv.org/abs/2202.13001) whenever this repository is used to help produce published results or incorporated into other software.
 
 ## Installation 
  -  Python 3.6+
