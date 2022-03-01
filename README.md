@@ -16,12 +16,14 @@
 Details of the algorithm and the experimental settings can be found in our following paper (update link later):
 
 
-    @inproceedings{metabandit,
-    title     = {{Non-stationary Bandits and Meta-Learning with a Small Set of Optimal Arms}},
-    author    = {MohammadJavad Azizi, Thang Duong, Yasin Abbasi-Yadkori, Andras Gyorgy, Claire Vernade and Mohammad Ghavamzadeh},
-    booktitle = {Update later},
-    year      = {2022}
-    }
+    @misc{azizi2022nonstationary,
+      title={Non-stationary Bandits and Meta-Learning with a Small Set of Optimal Arms}, 
+      author={MohammadJavad Azizi and Thang Duong and Yasin Abbasi-Yadkori and András György and Claire Vernade and Mohammad Ghavamzadeh},
+      year={2022},
+      eprint={2202.13001},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG}
+      }
 
 **Please CITE** our paper whenever this repository is used to help produce published results or incorporated into other software.
 
@@ -29,7 +31,7 @@ Details of the algorithm and the experimental settings can be found in our follo
  -  Python 3.6+
 
     ```
-    git clone (temp)https://github.com/duongnhatthang/meta-bandit.git
+    git clone https://github.com/duongnhatthang/meta-bandit.git
     cd meta-bandit
     pip3 install -r requirements.txt
     ```
