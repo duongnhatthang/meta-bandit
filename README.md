@@ -13,20 +13,6 @@
 
 ![](https://github.com/duongnhatthang/meta-bandit/blob/main/results/legend5.png)
 
-Details of the algorithm and the experimental settings can be found in our following [paper](https://arxiv.org/abs/2202.13001):
-
-
-    @misc{azizi2022nonstationary,
-      title={Non-stationary Bandits and Meta-Learning with a Small Set of Optimal Arms}, 
-      author={MohammadJavad Azizi and Thang Duong and Yasin Abbasi-Yadkori and András György and Claire Vernade and Mohammad Ghavamzadeh},
-      year={2022},
-      eprint={2202.13001},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG}
-      }
-
-**Please CITE** our [paper](https://arxiv.org/abs/2202.13001) whenever this repository is used to help produce published results or incorporated into other software.
-
 ## Installation 
  -  Python 3.6+
 
@@ -54,10 +40,10 @@ Details of the algorithm and the experimental settings can be found in our follo
 
     ```
     python eval.py --exp=arms --loadCache
-    python eval.py --exp=task --stochastic --nArms=5 --nExps=2 --optSize=2 --horizon=100 --expArgs="[100,111,10] --notLoadCache
+    python eval.py --exp=task --stochastic --nArms=5 --nExps=2 --optSize=2 --horizon=100 --expArgs="[100,111,10]" --notLoadCache
     python eval.py --exp=horizon --stochastic --nTasks=100 --nArms=5 --nExps=2 --optSize=2 --expArgs="[100,111,10]" --notLoadCache
-    python eval.py --exp=arms --adversarial --nTasks=100 --nExps=2 --optSize=2 --horizon=100 --expArgs=[3,5,1] --notLoadCache
-    python eval.py --exp=subset --adversarial --nTasks=100 --nArms=5 --nExps=2 --horizon=100 --expArgs="[2,6,1] --notLoadCache
+    python eval.py --exp=arms --adversarial --nTasks=100 --nExps=2 --optSize=2 --horizon=100 --expArgs="[3,5,1]" --notLoadCache
+    python eval.py --exp=subset --adversarial --nTasks=100 --nArms=5 --nExps=2 --horizon=100 --expArgs="[2,6,1]" --notLoadCache
     ```
 
 ## License: [Apache 2.0](https://github.com/duongnhatthang/meta-bandit/blob/main/LICENSE)
