@@ -27,11 +27,13 @@
  -  Using script and check the outputs in `\results`:
 
     ```
-    python eval.py --exp <experiment_type> --notLoadCache <run_new_experiment> \
-                   --nTasks <int_value> --nArms <int_value> --nExps <int_value> --optSize <int_value> \
+    python eval.py --exp <experiment_type> --stochastic --adversarial --nonOblivious\
+                   --nTasks <int_value> --nArms <int_value> \
+                   --nExps <int_value> --optSize <int_value> \
                    --horizon <int_value> --expArgs <str_value> --timeOut <int_value>
     ```
 
+    + `--stochastic/adversarial`, `--nonOblivious`: experiment setting
     + `--nTasks`, `--nArms`, `--optSize`, `--horizon`, `--nExps`: the number of tasks, arms, optimal size, horizon and repeated experiments
     + `--expArgs`: experiment's setting. Example: `--exp=horizon --expArgs="[100,111,10]"` means running the horizon experiment with `horizon_list = range(100, 111, 10)`
     + `--timeOut`: maximum duration of one experiment for each baselines. Total runtime is: timeOut * nExps 
@@ -39,11 +41,10 @@
  -  Examples:
 
     ```
-    python eval.py --exp=arms --loadCache
-    python eval.py --exp=task --stochastic --nArms=5 --nExps=2 --optSize=2 --horizon=100 --expArgs="[100,111,10]" --notLoadCache
-    python eval.py --exp=horizon --stochastic --nTasks=100 --nArms=5 --nExps=2 --optSize=2 --expArgs="[100,111,10]" --notLoadCache
-    python eval.py --exp=arms --adversarial --nTasks=100 --nExps=2 --optSize=2 --horizon=100 --expArgs="[3,5,1]" --notLoadCache
-    python eval.py --exp=subset --adversarial --nTasks=100 --nArms=5 --nExps=2 --horizon=100 --expArgs="[2,6,1]" --notLoadCache
+    python eval.py --exp=task --stochastic --nArms=5 --nExps=2 --optSize=2 --horizon=100 --expArgs="[100,111,10]"
+    python eval.py --exp=horizon --stochastic --nTasks=100 --nArms=5 --nExps=2 --optSize=2 --expArgs="[100,111,10]"
+    python eval.py --exp=arms --adversarial --nTasks=100 --nExps=2 --optSize=2 --horizon=100 --expArgs="[3,5,1]"
+    python eval.py --exp=subset --adversarial --nTasks=100 --nArms=5 --nExps=2 --horizon=100 --expArgs="[2,6,1]"
     ```
 
 ## License: [Apache 2.0](https://github.com/duongnhatthang/meta-bandit/blob/main/LICENSE)

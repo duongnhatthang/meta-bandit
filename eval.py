@@ -31,7 +31,7 @@ def task_exp(args, extra_args):
     if not args.loadCache:
         task_list = np.arange(extra_args["exp_args"][0], extra_args["exp_args"][1], extra_args["exp_args"][2])
         (X, regret_dict, title, xlabel, ylabel) = utils.task_exp(
-            N_EXPS, HORIZON, N_ARMS, OPT_SIZE, task_list, **extra_args
+            N_EXPS, N_ARMS, OPT_SIZE, HORIZON, task_list, **extra_args
         )
     else:
         X = np.arange(N_TASKS)
@@ -121,7 +121,7 @@ def arms_exp(args, extra_args):
     if not args.loadCache:
         n_arms_list = np.arange(extra_args["exp_args"][0], extra_args["exp_args"][1], extra_args["exp_args"][2])
         (X_b, regret_dict_b, title, xlabel, ylabel) = utils.arms_exp(
-            N_EXPS, N_TASKS, HORIZON, OPT_SIZE, n_arms_list, **extra_args
+            N_EXPS, N_TASKS, OPT_SIZE, HORIZON, n_arms_list, **extra_args
         )
     else:
         title = f"{setting}: Horizon = {HORIZON}, {N_TASKS} tasks, and subset size = {OPT_SIZE}"
@@ -147,6 +147,8 @@ if __name__ == "__main__":
     parser.add_argument("--adversarial", dest="isAdversarial", action="store_true")
     parser.add_argument("--stochastic", dest="isAdversarial", action="store_false")
     parser.set_defaults(isAdversarial=True)
+    parser.add_argument("--nonOblivious", dest="isNonOblivious", action="store_true")
+    parser.set_defaults(isNonOblivious=False)
     parser.add_argument("--quiet", dest="quiet", action="store_true")
     parser.add_argument("--notQuiet", dest="quiet", action="store_false")
     parser.set_defaults(quiet=True)
@@ -202,6 +204,7 @@ if __name__ == "__main__":
         "linewidth": 4,
         "plot_legend": True,
         "OG_scale": 1,  # 0.008,
+        "is_non_oblivious": args.isNonOblivious,
     }
     tik = time.time()
     if args.exp == "task":
